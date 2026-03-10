@@ -19,7 +19,7 @@ Sili now possesses eyes on the web:
 
 ### One-Line Install
 ```bash
-curl -sSL https://raw.githubusercontent.com/user/sili/master/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/silitheai/sili/main/install.sh | bash
 ```
 
 ### Manual Setup
