@@ -6,8 +6,8 @@ import json
 from datetime import datetime
 from dotenv import load_dotenv
 
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler, CallbackQueryHandler
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
@@ -113,6 +113,9 @@ async def list_tools(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
     agent = Agent(user_id=str(user.id))
     
+    # Check if this is a callback query or a direct command
+    target = update.message if update.message else update.callback_query.message
+    
     text = "⚒ <b>SILI Master Toolkit & Neural Skillset</b>\n\n"
     
     text += "<b>Core Tools:</b>\n"
@@ -131,9 +134,9 @@ async def list_tools(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     if len(text) > 4000:
         chunks = [text[i:i + 4000] for i in range(0, len(text), 4000)]
         for chunk in chunks:
-            await update.message.reply_html(chunk)
+            await target.reply_html(chunk) if update.message else await target.edit_text(chunk, parse_mode="HTML")
     else:
-        await update.message.reply_html(text)
+        await target.reply_html(text) if update.message else await target.edit_text(text, parse_mode="HTML")
 
 async def sync_commands(application: Application):
     """Dynamically updates the Telegram bot menu based on available tools."""
@@ -183,12 +186,15 @@ async def ollama_status_command(update: Update, context: ContextTypes.DEFAULT_TY
     
     from src.skills.ollama_status import ollama_status
     status = ollama_status()
-    await update.message.reply_html(status)
+    
+    target = update.message if update.message else update.callback_query.message
+    await target.reply_html(status) if update.message else await target.edit_text(status, parse_mode="HTML")
 
 # --- SOUL CONFIGURATION HANDLERS ---
 async def setsoul_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Starts the conversational setup for the Agent's Soul."""
-    await update.message.reply_html(
+    target = update.message if update.message else update.callback_query.message
+    await target.reply_html(
         "🧠 <b>Welcome to the Soul Configurator!</b>\n\n"
         "Let's build your agent's identity. First, what should be the agent's <b>Name</b>?\n"
         "<i>(Send /cancel at any time to abort)</i>"
@@ -224,6 +230,46 @@ async def setsoul_personality(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def setsoul_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Soul configuration cancelled.")
     return ConversationHandler.END
+
+# --- INLINE KEYBOARD MENU HANDLERS ---
+async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Displays an interactive menu with buttons."""
+    user = update.effective_user
+    if str(user.id) != AUTHORIZED_USER_ID: return
+
+    keyboard = [
+        [InlineKeyboardButton("List Tools", callback_data="list_tools"),
+         InlineKeyboardButton("Ollama Status", callback_data="ollama_status")],
+        [InlineKeyboardButton("Set Soul", callback_data="set_soul"),
+         InlineKeyboardButton("Help", callback_data="show_help")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("⚙️ <b>Sili Neural Interactive Menu:</b>", reply_markup=reply_markup, parse_mode="HTML")
+
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handles button presses from the interactive menu."""
+    query = update.callback_query
+    await query.answer() # Acknowledge the callback query
+
+    user_id = str(query.from_user.id)
+    if user_id != AUTHORIZED_USER_ID:
+        await query.edit_message_text("🔒 Access Denied.")
+        return
+
+    if query.data == "list_tools":
+        await query.edit_message_text("Fetching tools list...")
+        await list_tools(update, context) # Pass update, not query
+    elif query.data == "ollama_status":
+        await query.edit_message_text("Checking Ollama status...")
+        await ollama_status_command(update, context) 
+    elif query.data == "set_soul":
+        await query.edit_message_text("Initiating Soul Configuration...")
+        await setsoul_start(update, context) # Re-use existing command handler
+    elif query.data == "show_help":
+        await query.edit_message_text("Displaying help information...")
+        await start(update, context) # Re-use existing command handler (start also serves as help)
+    else:
+        await query.edit_message_text(f"Unknown action: {query.data}")
 
 # --- TEMPORAL SCHEDULER LOGIC ---
 async def execute_scheduled_job(job_id: str, goal: str, user_id: str):
@@ -296,6 +342,8 @@ def main() -> None:
     application.add_handler(CommandHandler("help", start))
     application.add_handler(CommandHandler("tools", list_tools))
     application.add_handler(CommandHandler("ollama", ollama_status_command))
+    application.add_handler(CommandHandler("menu", menu_command))
+    application.add_handler(CallbackQueryHandler(button_callback))
 
     soul_handler = ConversationHandler(
         entry_points=[CommandHandler("setsoul", setsoul_start)],

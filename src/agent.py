@@ -197,6 +197,7 @@ Action Input: [A valid JSON object]
 
         prompt = f"{ambient}\nNeural Reflection: {neural_reflection}\nCognitive Context: {context.get('procedural', [])}\nGoal: {goal}\n"
         
+        consecutive_errors = 0
         for step in range(self.max_steps):
             print(f"\n--- Infinite Step {step+1}/{self.max_steps} ---")
             
@@ -206,10 +207,17 @@ Action Input: [A valid JSON object]
             thought, action, action_input_raw = self._parse_response(response_text)
             
             if not action or not action_input_raw:
-                error_msg = "Error: Could not parse Action or Action Input."
+                consecutive_errors += 1
+                error_msg = f"Error: Could not parse Action or Action Input. (Error count: {consecutive_errors})"
                 prompt += f"\nObservation: {error_msg}\n"
+                
+                if consecutive_errors >= 10:
+                     return f"Cognitive Halt: Sili encountered too many consecutive parsing errors ({consecutive_errors}). Check if Ollama is connected or the model is hallucinating."
+                
+                time.sleep(1) # Safety delay to prevent fast-spinning
                 continue
-
+            
+            consecutive_errors = 0 # Reset on success
             try:
                 cleaned_input = re.sub(r'```json\n|```\n?', '', action_input_raw).strip()
                 action_input = json.loads(cleaned_input)
