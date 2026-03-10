@@ -1,14 +1,17 @@
 echo "🚀 Initiating SILI: The Infinite Mind Upgrade..."
 
 # 1. Clone or Update Repository
-if [ ! -d "Sili" ] && [ ! -f "main.py" ]; then
-    echo "🛸 Cloning Sili Repository..."
-    git clone https://github.com/silitheai/sili.git
-    cd sili
+if [ -d ".git" ] || [ -f "main.py" ]; then
+    echo "🔄 Sili directory detected. Updating to latest version..."
+    git pull origin main || echo "⚠️ Could not pull latest changes. Proceeding with local files."
 elif [ -d "Sili" ]; then
     cd Sili
     echo "🔄 Updating Sili to latest version..."
     git pull origin main
+else
+    echo "🛸 Cloning Sili Repository..."
+    git clone https://github.com/silitheai/sili.git
+    cd sili
 fi
 
 # 2. Check for Python
