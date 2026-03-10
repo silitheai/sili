@@ -1,33 +1,35 @@
-#!/bin/bash
-
-# SILI One-Line Installer
-# Usage: curl -sSL https://raw.githubusercontent.com/user/sili/master/install.sh | bash
-
-set -e
-
 echo "🚀 Initiating SILI: The Infinite Mind Upgrade..."
 
-# 1. Check for Python
+# 1. Clone Repository if not already present
+if [ ! -d "Sili" ] && [ ! -f "main.py" ]; then
+    echo "🛸 Cloning Sili Repository..."
+    git clone https://github.com/silitheai/sili.git
+    cd sili
+elif [ -d "Sili" ]; then
+    cd Sili
+fi
+
+# 2. Check for Python
 if ! command -v python3 &> /dev/null; then
     echo "❌ Error: Python 3 is not installed. Please install it first."
     exit 1
 fi
 
-# 2. Setup Virtual Environment
+# 3. Setup Virtual Environment
 echo "📦 Setting up virtual environment..."
 python3 -m venv venv
-source venv/bin/activate
+source venv/bin/activate || source venv/Scripts/activate
 
-# 3. Install Dependencies
+# 4. Install Dependencies
 echo "📥 Installing core dependencies..."
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# 4. Install Playwright Browsers
+# 5. Install Playwright Browsers
 echo "🌐 Installing browser binaries (Playwright)..."
 playwright install chromium
 
-# 5. Launch Onboarding Wizard
+# 6. Launch Onboarding Wizard
 echo "🧠 Launching Onboarding Wizard..."
 python3 setup.py
 
