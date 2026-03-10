@@ -1,8 +1,9 @@
+import os
 import ollama
 from typing import List, Dict, Any, Optional
 
 class LLMWrapper:
-    def __init__(self, text_model: str = "llama3.1", vision_model: str = "llama3.2-vision", host: str = "http://localhost:11434"):
+    def __init__(self, text_model: str = None, vision_model: str = None, host: str = "http://localhost:11434"):
         """Initializes the LLM wrapper connecting to a local Ollama instance.
         
         Args:
@@ -10,8 +11,8 @@ class LLMWrapper:
             vision_model: The name of the model to use for vision tasks.
             host: The URL of the Ollama host (default is localhost).
         """
-        self.text_model = text_model
-        self.vision_model = vision_model
+        self.text_model = text_model or os.getenv("TEXT_MODEL", "llama3.1")
+        self.vision_model = vision_model or os.getenv("VISION_MODEL", "llama3.2-vision")
         self.client = ollama.Client(host=host)
         
     def generate(self, prompt: str, system: Optional[str] = None, images: Optional[List[str]] = None) -> str:

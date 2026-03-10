@@ -7,29 +7,25 @@ from rich.panel import Panel
 
 console = Console()
 
-def check_ollama_status() -> bool:
-    """Checks if Ollama is running and has models available."""
+def check_ollama_status() -> list:
+    """Checks if Ollama is running and returns a list of model names."""
     try:
-        # Check basic connectivity
-        response = requests.get("http://localhost:11434/api/tags")
+        response = requests.get("http://localhost:11434/api/tags", timeout=5)
         if response.status_code == 200:
             data = response.json()
-            models = data.get("models", [])
-            if models:
-                console.print(f"[dim]  Detected models: {', '.join([m['name'] for m in models[:3]])}...[/dim]")
-                return True
-            else:
-                console.print("[yellow]  Ollama is running but no models are downloaded.[/yellow]")
-                return True # Still running
-        return False
+            models = [m['name'] for m in data.get("models", [])]
+            return models
+        return []
     except:
-        return False
+        return []
 
-def create_env_file(telegram_key: str, user_id: str, brave_key: str):
+def create_env_file(telegram_key: str, user_id: str, brave_key: str, text_model: str, vision_model: str):
     """Writes the provided keys to a .env file."""
     env_content = f"""TELEGRAM_BOT_TOKEN={telegram_key}
 TELEGRAM_USER_ID={user_id}
 BRAVE_SEARCH_API_KEY={brave_key}
+TEXT_MODEL={text_model}
+VISION_MODEL={vision_model}
 """
     env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
     with open(env_path, "w") as f:
@@ -79,8 +75,45 @@ def main():
 
     # Check Ollama
     console.print("\n[yellow]Checking for local Ollama instance...[/yellow]")
-    if check_ollama_status():
+    detected_models = check_ollama_status()
+    text_model = "llama3.1"
+    vision_model = "llama3.2-vision"
+    
+    if detected_models:
         console.print("[bold green]✓[/bold green] Ollama detected!")
+        console.print("\n[bold cyan]Ollama Model Selection[/bold cyan]")
+        
+        # Text Model Selection
+        console.print("\nSelect your [bold]Text Reasoning Model[/bold]:")
+        for i, m in enumerate(detected_models):
+            console.print(f"  {i+1}. {m}")
+        
+        while True:
+            choice = get_input(f"Pick a number (default: llama3.1)")
+            if not choice:
+                text_model = "llama3.1"
+                break
+            if choice.isdigit() and 1 <= int(choice) <= len(detected_models):
+                text_model = detected_models[int(choice)-1]
+                break
+            console.print("[red]Invalid choice.[/red]")
+
+        # Vision Model Selection
+        console.print("\nSelect your [bold]Vision/Multimodal Model[/bold]:")
+        for i, m in enumerate(detected_models):
+            console.print(f"  {i+1}. {m}")
+        
+        while True:
+            choice = get_input(f"Pick a number (default: llama3.2-vision)")
+            if not choice:
+                vision_model = "llama3.2-vision"
+                break
+            if choice.isdigit() and 1 <= int(choice) <= len(detected_models):
+                vision_model = detected_models[int(choice)-1]
+                break
+            console.print("[red]Invalid choice.[/red]")
+            
+        console.print(f"\n[green]Models selected:[/green] Text: {text_model} | Vision: {vision_model}")
     else:
         console.print("[bold red]![/bold red] Ollama not found on localhost:11434.")
         console.print("  Sili requires a local LLM. Please install Ollama from ollama.com.")
@@ -122,7 +155,7 @@ def main():
     brave_key = get_input("Enter your Brave Search API Key (leave blank to skip)")
 
     if telegram_key and user_id:
-        create_env_file(telegram_key, user_id, brave_key)
+        create_env_file(telegram_key, user_id, brave_key, text_model, vision_model)
         console.print("\n[bold green]Setup Complete![/bold green]")
         console.print("You can now start your Telegram bot by running: [yellow]python3 telegram_bot.py[/yellow]")
         console.print("[dim]Note: On first message, Sili will ask for a final pairing verification.[/dim]")

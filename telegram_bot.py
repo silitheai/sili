@@ -360,7 +360,10 @@ def main() -> None:
     status_summary = ollama_status()
     # Clean up markdown for terminal
     clean_status = status_summary.replace("✅ **", "").replace("**", "").replace("❌ **", "!")
-    print(f"\n[Sili Neural Heartbeat] {clean_status}\n")
+    print(f"\n[Sili Neural Heartbeat] {clean_status}")
+    text_m = os.getenv("TEXT_MODEL", "llama3.1")
+    vision_m = os.getenv("VISION_MODEL", "llama3.2-vision")
+    print(f"[Neural Nodes] Text: {text_m} | Vision: {vision_m}\n")
     
     print(f"Starting Sili V16 Daemon. Target User: {AUTHORIZED_USER_ID}")
     

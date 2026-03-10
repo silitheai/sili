@@ -22,7 +22,7 @@ from src.brain.cortex import NeuralCortex
 from src.brain.proprioception import Proprioception
 
 class Agent:
-    def __init__(self, text_model: str = "llama3.1", vision_model: str = "llama3.2-vision", user_id: str = "default_user"):
+    def __init__(self, text_model: str = None, vision_model: str = None, user_id: str = "default_user"):
         self.llm = LLMWrapper(text_model=text_model, vision_model=vision_model)
         self.user_id = user_id
         
