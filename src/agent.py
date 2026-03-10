@@ -33,7 +33,7 @@ class Agent:
         self.cortex = NeuralCortex(self.brain_orchestrator)
         self.proprioception = Proprioception()
         
-        self.max_steps = 15
+        self.max_steps = 1000
         
         # Recursive Master Tools Loader (src/tools/)
         self.tools_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools")
@@ -244,5 +244,4 @@ Action Input: [A valid JSON object]
                 
             prompt += f"\n{response_text}\nObservation: {observation}\nMeta-Thought: {meta_thought}\n"
 
-        return "God Mode halt: Reached maximum cognitive steps."
-
+        return "Neural depth exceeded: Sili achieved maximum persistence."

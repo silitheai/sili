@@ -268,7 +268,15 @@ def main() -> None:
         
     from branding import print_banner
     print_banner()
-    print(f"Starting Sili V16 Heartbeat. Target User: {AUTHORIZED_USER_ID}")
+    
+    # Check Ollama Status for Terminal
+    from src.skills.ollama_status import ollama_status
+    status_summary = ollama_status()
+    # Clean up markdown for terminal
+    clean_status = status_summary.replace("✅ **", "").replace("**", "").replace("❌ **", "!")
+    print(f"\n[Sili Neural Heartbeat] {clean_status}\n")
+    
+    print(f"Starting Sili V16 Daemon. Target User: {AUTHORIZED_USER_ID}")
     
     # Init application first
     application = Application.builder().token(TELEGRAM_TOKEN).build()
