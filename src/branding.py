@@ -1,7 +1,7 @@
 
 def get_ascii_logo():
     """Returns the SILI ASCII logo for terminal branding."""
-    return """
+    return r"""
    _____ _____ _      _____ 
   / ____|_   _| |    |_   _|
  | (___   | | | |      | |  

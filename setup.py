@@ -79,4 +79,13 @@ def main():
         console.print("\n[yellow]Setup finished without saving any keys.[/yellow] You can re-run this script later.")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except EOFError:
+        console.print("\n[bold red]Error:[/bold red] Interactive input is not available.")
+        console.print("If you are running the one-line installer, try running it like this:")
+        console.print("[yellow]bash -c \"$(curl -sSL https://raw.githubusercontent.com/silitheai/sili/main/install.sh)\"[/yellow]")
+        sys.exit(1)
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Setup cancelled by user.[/yellow]")
+        sys.exit(0)
