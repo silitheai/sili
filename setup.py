@@ -35,6 +35,20 @@ def check_playwright() -> bool:
     except ImportError:
         return False
 
+def get_input(prompt: str) -> str:
+    """Gets input from the user, falling back to /dev/tty if stdin is redirected."""
+    if sys.stdin.isatty():
+        return Prompt.ask(prompt)
+    else:
+        try:
+            # Try to open the controlling terminal for input
+            with open('/dev/tty', 'r') as tty:
+                console.print(prompt, end=" ")
+                return tty.readline().strip()
+        except:
+            # If everything fails, raise EOFError to be caught by the main handler
+            raise EOFError
+
 def main():
     logo = get_ascii_logo()
     console.print(logo, style="bold cyan")
@@ -47,7 +61,7 @@ def main():
     else:
         console.print("[bold red]![/bold red] Ollama not found on localhost:11434.")
         console.print("  Sili requires a local LLM. Please install Ollama from ollama.com.")
-        Prompt.ask("Press Enter to continue setup regardless")
+        get_input("Press Enter to continue setup regardless")
 
     # Check Playwright
     console.print("\n[yellow]Checking for Playwright...[/yellow]")
@@ -56,7 +70,7 @@ def main():
     else:
         console.print("[bold red]![/bold red] Playwright not found.")
         console.print("  Browser capabilities (Phase 14) will be disabled.")
-        Prompt.ask("Press Enter to continue")
+        get_input("Press Enter to continue")
 
     console.print("\n[bold cyan]Cognitive Configuration[/bold cyan]")
     console.print("We need a few API keys to enable Sili's advanced features.")
@@ -64,12 +78,12 @@ def main():
     # Telegram Key
     console.print("\n[bold]1. Telegram Bot Token[/bold]")
     console.print("Required to control Sili via Telegram. Get one by messaging @BotFather on Telegram.")
-    telegram_key = Prompt.ask("Enter your Telegram Bot Token (leave blank to skip)")
+    telegram_key = get_input("Enter your Telegram Bot Token (leave blank to skip)")
     
     # Brave Search Key
     console.print("\n[bold]2. Brave Search API Key[/bold]")
     console.print("Required for the agent to browse the web. You can get a free tier key from brave.com/search/api.")
-    brave_key = Prompt.ask("Enter your Brave Search API Key (leave blank to skip)")
+    brave_key = get_input("Enter your Brave Search API Key (leave blank to skip)")
 
     if telegram_key or brave_key:
         create_env_file(telegram_key, brave_key)
