@@ -97,10 +97,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         loop = asyncio.get_running_loop()
         agent = Agent(user_id=user_id)
         result = await loop.run_in_executor(None, agent.run, message_text, None)
-        await processing_message.edit_text(result)
+        
+        if "LLM Generation Error" in result or "ConnectionRefusedError" in result:
+             await processing_message.edit_text(f"⚠️ **Sili is disconnected from Ollama.**\n\nPlease ensure Ollama is running (`ollama serve`) and try again.\n\nError: {result}")
+        else:
+             await processing_message.edit_text(result)
     except Exception as e:
         logger.error(f"Error executing agent task: {e}")
-        await processing_message.edit_text(f"❌ Critical error: {str(e)}")
+        await processing_message.edit_text(f"❌ Critical error: {str(e)}\n\nCheck if your local Ollama instance is active.")
 
 async def list_tools(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Lists all available tools and skills to the user."""
@@ -137,6 +141,7 @@ async def sync_commands(application: Application):
         ("start", "Initialize/Verify the neural link"),
         ("setsoul", "Configure agent's identity"),
         ("tools", "List all 75+ autonomous capabilities"),
+        ("ollama", "Check local LLM health & models"),
         ("help", "Show system usage guide")
     ]
     
@@ -170,6 +175,15 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     except Exception as e:
         logger.error(f"Error processing voice note: {e}")
         await processing_message.edit_text(f"❌ Failed to process voice note: {str(e)}")
+
+async def ollama_status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Check local Ollama health and running models."""
+    user = update.effective_user
+    if str(user.id) != AUTHORIZED_USER_ID: return
+    
+    from src.skills.ollama_status import ollama_status
+    status = ollama_status()
+    await update.message.reply_html(status)
 
 # --- SOUL CONFIGURATION HANDLERS ---
 async def setsoul_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -273,6 +287,7 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", start))
     application.add_handler(CommandHandler("tools", list_tools))
+    application.add_handler(CommandHandler("ollama", ollama_status_command))
 
     soul_handler = ConversationHandler(
         entry_points=[CommandHandler("setsoul", setsoul_start)],
