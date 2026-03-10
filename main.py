@@ -18,9 +18,9 @@ def main():
     
     goal_string = " ".join(args.goal)
     
-    print("==================================================")
-    print("                 OPENCLAW                         ")
-    print("==================================================")
+    from branding import print_banner
+    print_banner()
+
     print(f"Goal: {goal_string}")
     print(f"Text Model: {args.text_model}")
     if args.image:

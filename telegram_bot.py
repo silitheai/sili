@@ -217,6 +217,8 @@ def main() -> None:
         print("\n[ERROR] Telegram Token not found! Please run 'python3 setup.py' to configure it, or add it to your .env file.")
         sys.exit(1)
         
+    from branding import print_banner
+    print_banner()
     print("Starting Sili Telegram Bot with Master Sub-Agent/Temporal Support...")
     
     # Start Scheduler and Background Sync Logic

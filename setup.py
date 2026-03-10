@@ -25,19 +25,40 @@ BRAVE_SEARCH_API_KEY={brave_key}
         f.write(env_content)
     console.print(f"\n[bold green]Success![/bold green] Configuration saved to {env_path}")
 
+from src.branding import get_ascii_logo
+
+def check_playwright() -> bool:
+    """Checks if playwright browsers are installed."""
+    try:
+        import playwright
+        return True
+    except ImportError:
+        return False
+
 def main():
-    console.print(Panel.fit("[bold cyan]Welcome to the Sili Setup Wizard[/bold cyan]", border_style="cyan"))
+    logo = get_ascii_logo()
+    console.print(logo, style="bold cyan")
+    console.print(Panel.fit("[bold cyan]Welcome to the SILI: The Infinite Mind Upgrade[/bold cyan]", border_style="cyan"))
     
     # Check Ollama
     console.print("\n[yellow]Checking for local Ollama instance...[/yellow]")
     if check_ollama_status():
-        console.print("[bold green]✓[/bold green] Ollama detected running on localhost:11434!")
+        console.print("[bold green]✓[/bold green] Ollama detected!")
     else:
-        console.print("[bold red]![/bold red] Ollama does not appear to be running on localhost:11434.")
-        console.print("  Make sure you have Ollama installed and running before using Sili.")
+        console.print("[bold red]![/bold red] Ollama not found on localhost:11434.")
+        console.print("  Sili requires a local LLM. Please install Ollama from ollama.com.")
         Prompt.ask("Press Enter to continue setup regardless")
 
-    console.print("\n[bold cyan]API Configuration[/bold cyan]")
+    # Check Playwright
+    console.print("\n[yellow]Checking for Playwright...[/yellow]")
+    if check_playwright():
+        console.print("[bold green]✓[/bold green] Playwright environment detected!")
+    else:
+        console.print("[bold red]![/bold red] Playwright not found.")
+        console.print("  Browser capabilities (Phase 14) will be disabled.")
+        Prompt.ask("Press Enter to continue")
+
+    console.print("\n[bold cyan]Cognitive Configuration[/bold cyan]")
     console.print("We need a few API keys to enable Sili's advanced features.")
     
     # Telegram Key
