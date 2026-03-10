@@ -22,6 +22,9 @@ from src.brain.cortex import NeuralCortex
 from src.brain.proprioception import Proprioception
 
 class Agent:
+    _cached_master_tools = None
+    _cached_dynamic_skills = None
+
     def __init__(self, text_model: str = None, vision_model: str = None, user_id: str = "default_user"):
         self.llm = LLMWrapper(text_model=text_model, vision_model=vision_model)
         self.user_id = user_id
@@ -35,13 +38,16 @@ class Agent:
         
         self.max_steps = 10000
         
-        # Recursive Master Tools Loader (src/tools/)
+        # V16.7 Speed: Class-level caching for tools/skills
         self.tools_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools")
-        self.master_tools = self._load_recursive_tools(self.tools_dir)
+        if Agent._cached_master_tools is None:
+            Agent._cached_master_tools = self._load_recursive_tools(self.tools_dir)
+        self.master_tools = Agent._cached_master_tools
         
-        # Recursive Skills Loader (src/skills/)
         self.skills_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "skills")
-        self.dynamic_skills = self._load_recursive_tools(self.skills_dir)
+        if Agent._cached_dynamic_skills is None:
+            Agent._cached_dynamic_skills = self._load_recursive_tools(self.skills_dir)
+        self.dynamic_skills = Agent._cached_dynamic_skills
         
         self.system_prompt = self._build_system_prompt()
         

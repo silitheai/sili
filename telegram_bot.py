@@ -14,6 +14,16 @@ from apscheduler.triggers.cron import CronTrigger
 # Add src to path just in case
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
 from agent import Agent
+from brain.ollama_manager import OllamaManager
+
+# Global Agent Instance (V16.7 Speed)
+global_agent = None
+
+def get_agent(user_id):
+    global global_agent
+    if global_agent is None:
+        global_agent = Agent(user_id=user_id)
+    return global_agent
 
 # Enable logging
 logging.basicConfig(
@@ -91,29 +101,42 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
 
     message_text = update.message.text
-    processing_message = await update.message.reply_text(f"🧠 Processing goal: '{message_text}'...")
+    processing_message = await update.message.reply_text(f"🧠 Sili is reasoning...")
 
     try:
+        # 1. Immediate Ollama Check (Async)
+        om = OllamaManager()
+        if not await om.is_model_available(os.getenv("TEXT_MODEL", "llama3.1")):
+            await processing_message.edit_text("⚠️ **Ollama is offline or model is missing.**\nPlease run `ollama serve` and ensure your model is downloaded.")
+            return
+
+        # 2. Background Typing Indicator
+        async def send_typing():
+            while True:
+                await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+                await asyncio.sleep(4)
+        
+        typing_task = asyncio.create_task(send_typing())
+        
+        # 3. Neural Execution (Non-blocking)
         loop = asyncio.get_running_loop()
-        agent = Agent(user_id=user_id)
+        agent = get_agent(user_id=user_id)
         
         logger.info(f"Neural Loop Start: {message_text}")
         start_time = datetime.now()
         
-        # Execute agent in a separate thread to avoid blocking the event loop
         result = await loop.run_in_executor(None, agent.run, message_text, None)
         
-        end_time = datetime.now()
-        duration = (end_time - start_time).total_seconds()
+        # Cleanup
+        typing_task.cancel()
+        duration = (datetime.now() - start_time).total_seconds()
         logger.info(f"Neural Loop Finished in {duration:.2f}s")
         
-        if "LLM Generation Error" in result or "ConnectionRefusedError" in result:
-             await processing_message.edit_text(f"⚠️ **Sili is disconnected from Ollama.**\n\nPlease ensure Ollama is running (`ollama serve`) and try again.\n\nError: {result}")
-        else:
-             await processing_message.edit_text(result)
+        await processing_message.edit_text(result)
     except Exception as e:
         logger.error(f"Error executing agent task: {e}")
-        await processing_message.edit_text(f"❌ Critical error: {str(e)}\n\nCheck if your local Ollama instance is active.")
+        if 'typing_task' in locals(): typing_task.cancel()
+        await processing_message.edit_text(f"❌ Neural Fault: {str(e)}")
 
 async def list_tools(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Lists all available tools and skills to the user."""

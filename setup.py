@@ -119,7 +119,11 @@ def main():
         console.print("\n[yellow]Running selection verification test...[/yellow]")
         from src.brain.ollama_manager import OllamaManager
         manager = OllamaManager()
-        if manager.verify_connectivity(text_model):
+        # Use sync summary for immediate feedback
+        console.print(f"[dim]{manager.get_status_summary_sync()}[/dim]")
+        
+        import asyncio
+        if asyncio.run(manager.verify_connectivity(text_model)):
             console.print(f"[bold green]✓[/bold green] {text_model} is responsive!")
         else:
             console.print(f"[bold red]![/bold red] {text_model} failed to respond in time.")
