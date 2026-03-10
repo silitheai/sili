@@ -15,16 +15,16 @@ def check_ollama_status() -> bool:
     except requests.exceptions.ConnectionError:
         return False
 
-def create_env_file(telegram_key: str, brave_key: str):
+def create_env_file(telegram_key: str, user_id: str, brave_key: str):
     """Writes the provided keys to a .env file."""
     env_content = f"""TELEGRAM_BOT_TOKEN={telegram_key}
+TELEGRAM_USER_ID={user_id}
 BRAVE_SEARCH_API_KEY={brave_key}
 """
     env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
     with open(env_path, "w") as f:
         f.write(env_content)
     console.print(f"\n[bold green]Success![/bold green] Configuration saved to {env_path}")
-
 from src.branding import get_ascii_logo
 
 def check_playwright() -> bool:
@@ -72,25 +72,36 @@ def main():
         console.print("  Browser capabilities (Phase 14) will be disabled.")
         get_input("Press Enter to continue")
 
-    console.print("\n[bold cyan]Cognitive Configuration[/bold cyan]")
-    console.print("We need a few API keys to enable Sili's advanced features.")
+    console.print("\n[bold cyan]Cognitive & Security Configuration[/bold cyan]")
+    console.print("We need a few API keys and security details to link Sili to your identity.")
     
     # Telegram Key
     console.print("\n[bold]1. Telegram Bot Token[/bold]")
-    console.print("Required to control Sili via Telegram. Get one by messaging @BotFather on Telegram.")
-    telegram_key = get_input("Enter your Telegram Bot Token (leave blank to skip)")
+    console.print("Required to control Sili via Telegram. Get one by messaging @BotFather.")
+    telegram_key = get_input("Enter your Telegram Bot Token")
+    
+    # Telegram User ID
+    console.print("\n[bold]2. Telegram User ID[/bold]")
+    console.print("Sili will ONLY respond to you. Message @userinfobot to get your ID.")
+    user_id = get_input("Enter your Telegram User ID")
+
+    # Pairing Code Flow (Optional but recommended)
+    console.print("\n[bold]3. Security Pairing[/bold]")
+    console.print("Once you start the bot, it will send you a pairing code to verify this link.")
     
     # Brave Search Key
-    console.print("\n[bold]2. Brave Search API Key[/bold]")
-    console.print("Required for the agent to browse the web. You can get a free tier key from brave.com/search/api.")
+    console.print("\n[bold]4. Brave Search API Key[/bold]")
+    console.print("Required for the agent to browse the web.")
     brave_key = get_input("Enter your Brave Search API Key (leave blank to skip)")
 
-    if telegram_key or brave_key:
-        create_env_file(telegram_key, brave_key)
+    if telegram_key and user_id:
+        create_env_file(telegram_key, user_id, brave_key)
         console.print("\n[bold green]Setup Complete![/bold green]")
         console.print("You can now start your Telegram bot by running: [yellow]python3 telegram_bot.py[/yellow]")
+        console.print("[dim]Note: On first message, Sili will ask for a final pairing verification.[/dim]")
     else:
-        console.print("\n[yellow]Setup finished without saving any keys.[/yellow] You can re-run this script later.")
+        console.print("\n[bold red]Error:[/bold red] Telegram Token and User ID are required for Sili to function.")
+        sys.exit(1)
 
 if __name__ == "__main__":
     try:

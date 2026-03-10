@@ -38,4 +38,12 @@ playwright install chromium
 echo "🧠 Launching Onboarding Wizard..."
 python3 setup.py
 
-echo "✨ Installation complete. Run 'python3 main.py' to start Sili."
+# 7. Register Global Commands
+echo "🛠 Registering global CLI commands..."
+ABS_PATH=$(pwd)
+echo "alias start-sili='cd $ABS_PATH && source venv/bin/activate && python3 telegram_bot.py'" >> ~/.zshrc
+echo "alias sili-setup='cd $ABS_PATH && source venv/bin/activate && python3 setup.py'" >> ~/.zshrc
+echo "alias sili-cli='cd $ABS_PATH && source venv/bin/activate && python3 main.py'" >> ~/.zshrc
+
+echo "✨ Installation complete. Please run 'source ~/.zshrc' to enable commands."
+echo "🚀 Run 'start-sili' to begin."

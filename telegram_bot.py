@@ -28,6 +28,15 @@ active_job_ids = set()
 # Load env variables
 load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+AUTHORIZED_USER_ID = os.getenv("TELEGRAM_USER_ID")
+
+# Pairing Code Logic
+PAIRING_PATH = os.path.join(os.path.dirname(__file__), ".pairing")
+is_verified = os.path.exists(PAIRING_PATH)
+
+import random
+def generate_pairing_code():
+    return "".join(random.choices("0123456789", k=6))
 
 # Define states for the /setsoul conversation
 SOUL_NAME, SOUL_TITLE, SOUL_PERSONALITY = range(3)
@@ -35,60 +44,88 @@ SOUL_NAME, SOUL_TITLE, SOUL_PERSONALITY = range(3)
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /start is issued."""
     user = update.effective_user
+    if str(user.id) != AUTHORIZED_USER_ID:
+        logger.warning(f"Unauthorized access attempt by {user.id}")
+        return
+
+    global is_verified
+    if not is_verified:
+        pairing_code = generate_pairing_code()
+        context.user_data['pairing_code'] = pairing_code
+        await update.message.reply_html(
+            f"✨ <b>SILI Security Sync Initiated</b>\n\n"
+            f"Please verify your identity. Your pairing code is:\n"
+            f"<code>{pairing_code}</code>\n\n"
+            f"Send this code now to finalize the neural link."
+        )
+        return
+
     await update.message.reply_html(
-        rf"Hi {user.mention_html()}! I am Sili. Send me a goal or task, and I will execute it autonomously."
+        rf"Hi {user.mention_html()}! Sili V16 is active. Send me a goal or use /setsoul to define me."
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Takes the user's message, runs it through the Sili agent loop, and returns the final response."""
-    user_id = str(update.effective_user.id)
-    message_text = update.message.text
+    user = update.effective_user
+    user_id = str(user.id)
     
-    # Notify user that the agent has started processing
+    if user_id != AUTHORIZED_USER_ID:
+        return
+
+    global is_verified
+    if not is_verified:
+        provided_code = update.message.text
+        expected_code = context.user_data.get('pairing_code')
+        if provided_code == expected_code:
+            is_verified = True
+            with open(PAIRING_PATH, "w") as f:
+                f.write("verified")
+            await update.message.reply_html("✅ <b>Identity Verified.</b> Neural link established. How can I assist you today?")
+        else:
+            await update.message.reply_text("❌ Invalid pairing code. Send /start to try again.")
+        return
+
+    message_text = update.message.text
     processing_message = await update.message.reply_text(f"🧠 Processing goal: '{message_text}'...")
 
     try:
-        # Run agent synchronously in a separate thread/executor to avoid blocking the Telegram async loop
-        # We pass user_id so memory works uniquely for different chat users
         loop = asyncio.get_running_loop()
         agent = Agent(user_id=user_id)
-        
-        # Note: The agent block can take a long time to run (multiple ReAct steps)
         result = await loop.run_in_executor(None, agent.run, message_text, None)
-        
-        # Return the final summary
         await processing_message.edit_text(result)
-        
     except Exception as e:
         logger.error(f"Error executing agent task: {e}")
-        await processing_message.edit_text(f"❌ Critical error while processing task: {str(e)}")
+        await processing_message.edit_text(f"❌ Critical error: {str(e)}")
+
+async def sync_commands(application: Application):
+    """Dynamically updates the Telegram bot menu based on available tools."""
+    commands = [
+        ("start", "Initialize the neural link"),
+        ("setsoul", "Configure agent's identity"),
+        ("help", "Show available system capabilities")
+    ]
+    # Optionally add more from tools list
+    await application.bot.set_my_commands(commands)
+    logger.info("Bot commands synchronized.")
 
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Downloads voice notes and passes the path to the agent for transcription/processing."""
     user_id = str(update.effective_user.id)
+    if user_id != AUTHORIZED_USER_ID: return
     
     processing_message = await update.message.reply_text("🎤 Downloading and processing your voice note...")
-    
     try:
         voice_file = await update.message.voice.get_file()
-        
         temp_dir = os.path.join(os.path.dirname(__file__), "tmp")
         os.makedirs(temp_dir, exist_ok=True)
         file_path = os.path.join(temp_dir, f"{user_id}_voice.ogg")
-        
         await voice_file.download_to_drive(file_path)
-        
         goal = f"I just sent you a voice note located at '{file_path}'. Please use the 'transcribe_audio' tool to listen to it, and then fulfill whatever instruction I gave you in the audio."
-        
         loop = asyncio.get_running_loop()
         agent = Agent(user_id=user_id)
         result = await loop.run_in_executor(None, agent.run, goal, None)
-        
-        if os.path.exists(file_path):
-            os.remove(file_path)
-            
+        if os.path.exists(file_path): os.remove(file_path)
         await processing_message.edit_text(result)
-        
     except Exception as e:
         logger.error(f"Error processing voice note: {e}")
         await processing_message.edit_text(f"❌ Failed to process voice note: {str(e)}")
@@ -121,31 +158,17 @@ async def setsoul_title(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
 async def setsoul_personality(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['soul_personality'] = update.message.text
-    
-    # Save the soul to disk
-    soul_data = {
-        "name": context.user_data['soul_name'],
-        "title": context.user_data['soul_title'],
-        "personality": context.user_data['soul_personality']
-    }
-    
+    soul_data = {"name": context.user_data['soul_name'], "title": context.user_data['soul_title'], "personality": context.user_data['soul_personality']}
     soul_path = os.path.join(os.path.dirname(__file__), "soul.json")
     try:
-        with open(soul_path, "w") as f:
-            json.dump(soul_data, f, indent=4)
-        await update.message.reply_html(
-            "✅ <b>Soul Successfully Injected!</b>\n\n"
-            "Sili has been fully reconfigured with its new identity. Future messages will tap into this core persona."
-        )
-    except Exception as e:
-        await update.message.reply_text(f"❌ Failed to save soul configuration: {e}")
-        
+        with open(soul_path, "w") as f: json.dump(soul_data, f, indent=4)
+        await update.message.reply_html("✅ <b>Soul Successfully Injected!</b>\n\nSili has been fully reconfigured.")
+    except Exception as e: await update.message.reply_text(f"❌ Failed to save soul: {e}")
     return ConversationHandler.END
 
 async def setsoul_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text("Soul configuration cancelled. Sili will retain its previous identity.")
+    await update.message.reply_text("Soul configuration cancelled.")
     return ConversationHandler.END
-# -----------------------------------
 
 # --- TEMPORAL SCHEDULER LOGIC ---
 async def execute_scheduled_job(job_id: str, goal: str, user_id: str):
@@ -154,85 +177,55 @@ async def execute_scheduled_job(job_id: str, goal: str, user_id: str):
     try:
         loop = asyncio.get_running_loop()
         agent = Agent(user_id=user_id)
-        
-        # Override directive for background tasks
         directive = f"[CRON JOB TRIGGERED] Act autonomously to fulfill the following scheduled goal. Be extremely brief in your final summary.\n\nGOAL: {goal}"
         result = await loop.run_in_executor(None, agent.run, directive, None)
-        
-        # Send result back via bot
         bot_app = Application.builder().token(TELEGRAM_TOKEN).build()
         async with bot_app.bot:
-             await bot_app.bot.send_message(
-                 chat_id=user_id,
-                 text=f"⏰ <b>Scheduled Agent Task Completed!</b>\n\nGoal: {goal}\n\nResult:\n{result}",
-                 parse_mode="HTML"
-             )
-    except Exception as e:
-        logger.error(f"Failed to execute scheduled job {job_id}: {e}")
+             await bot_app.bot.send_message(chat_id=user_id, text=f"⏰ <b>Scheduled Agent Task Completed!</b>\n\nGoal: {goal}\n\nResult:\n{result}", parse_mode="HTML")
+    except Exception as e: logger.error(f"Failed to execute scheduled job {job_id}: {e}")
 
 def sync_jobs_from_disk():
     """Reads jobs.json and adds any new jobs to the APScheduler."""
     jobs_file = os.path.join(os.path.dirname(__file__), "jobs.json")
-    if not os.path.exists(jobs_file):
-        return
-        
+    if not os.path.exists(jobs_file): return
     try:
-        with open(jobs_file, "r") as f:
-            jobs = json.load(f)
-            
+        with open(jobs_file, "r") as f: jobs = json.load(f)
         current_disk_ids = set()
         for j in jobs:
             job_id = j.get("id")
             current_disk_ids.add(job_id)
-            
             if job_id not in active_job_ids:
-                # Add new job
-                cron_str = j.get("cron")
-                goal = j.get("goal")
-                user_id = j.get("user_id")
-                
-                scheduler.add_job(
-                    execute_scheduled_job,
-                    CronTrigger.from_crontab(cron_str),
-                    id=job_id,
-                    args=[job_id, goal, user_id]
-                )
+                cron_str = j.get("cron"); goal = j.get("goal"); user_id = j.get("user_id")
+                scheduler.add_job(execute_scheduled_job, CronTrigger.from_crontab(cron_str), id=job_id, args=[job_id, goal, user_id])
                 active_job_ids.add(job_id)
-                logger.info(f"Added scheduled job to daemon: {job_id} ({cron_str})")
-                
-        # Remove deleted jobs
+                logger.info(f"Added scheduled job: {job_id}")
         for active_id in list(active_job_ids):
              if active_id not in current_disk_ids:
                   scheduler.remove_job(active_id)
                   active_job_ids.remove(active_id)
-                  logger.info(f"Removed deleted scheduled job: {active_id}")
-                  
-    except Exception as e:
-        logger.error(f"Error syncing background jobs: {e}")
-# -----------------------------------
+    except Exception as e: logger.error(f"Error syncing background jobs: {e}")
 
 def main() -> None:
     """Start the bot."""
-    if not TELEGRAM_TOKEN:
-        print("\n[ERROR] Telegram Token not found! Please run 'python3 setup.py' to configure it, or add it to your .env file.")
+    if not TELEGRAM_TOKEN or not AUTHORIZED_USER_ID:
+        print("\n[ERROR] Telegram Token or User ID missing! Run 'python3 setup.py'.")
         sys.exit(1)
         
     from branding import print_banner
     print_banner()
-    print("Starting Sili Telegram Bot with Master Sub-Agent/Temporal Support...")
+    print(f"Starting Sili V16 Heartbeat. Target User: {AUTHORIZED_USER_ID}")
     
-    # Start Scheduler and Background Sync Logic
     scheduler.start()
     scheduler.add_job(sync_jobs_from_disk, 'interval', seconds=15)
     
-    # Create application
     application = Application.builder().token(TELEGRAM_TOKEN).build()
 
-    # on different commands - answer in Telegram
+    # Sync commands on startup
+    asyncio.get_event_loop().run_until_complete(sync_commands(application))
+
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", start))
 
-    # Soul Conversation Handler
     soul_handler = ConversationHandler(
         entry_points=[CommandHandler("setsoul", setsoul_start)],
         states={
@@ -243,16 +236,9 @@ def main() -> None:
         fallbacks=[CommandHandler("cancel", setsoul_cancel)],
     )
     application.add_handler(soul_handler)
-
-    # on non command i.e message - pass to agent
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
-    # Voice notes
     application.add_handler(MessageHandler(filters.VOICE, handle_voice))
-
-    # Run the bot until the user presses Ctrl-C
     application.run_polling(allowed_updates=Update.ALL_TYPES)
-
 
 if __name__ == "__main__":
     main()
