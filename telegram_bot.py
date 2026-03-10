@@ -96,7 +96,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     try:
         loop = asyncio.get_running_loop()
         agent = Agent(user_id=user_id)
+        
+        logger.info(f"Neural Loop Start: {message_text}")
+        start_time = datetime.now()
+        
+        # Execute agent in a separate thread to avoid blocking the event loop
         result = await loop.run_in_executor(None, agent.run, message_text, None)
+        
+        end_time = datetime.now()
+        duration = (end_time - start_time).total_seconds()
+        logger.info(f"Neural Loop Finished in {duration:.2f}s")
         
         if "LLM Generation Error" in result or "ConnectionRefusedError" in result:
              await processing_message.edit_text(f"⚠️ **Sili is disconnected from Ollama.**\n\nPlease ensure Ollama is running (`ollama serve`) and try again.\n\nError: {result}")
@@ -356,11 +365,11 @@ def main() -> None:
     print_banner()
     
     # Check Ollama Status for Terminal
-    from src.skills.ollama_status import ollama_status
-    status_summary = ollama_status()
-    # Clean up markdown for terminal
-    clean_status = status_summary.replace("✅ **", "").replace("**", "").replace("❌ **", "!")
-    print(f"\n[Sili Neural Heartbeat] {clean_status}")
+    from brain.ollama_manager import OllamaManager
+    om = OllamaManager()
+    status_summary = om.get_status_summary()
+    print(f"\n[Sili Neural Heartbeat] {status_summary}")
+    
     text_m = os.getenv("TEXT_MODEL", "llama3.1")
     vision_m = os.getenv("VISION_MODEL", "llama3.2-vision")
     print(f"[Neural Nodes] Text: {text_m} | Vision: {vision_m}\n")

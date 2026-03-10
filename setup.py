@@ -114,6 +114,17 @@ def main():
             console.print("[red]Invalid choice.[/red]")
             
         console.print(f"\n[green]Models selected:[/green] Text: {text_model} | Vision: {vision_model}")
+        
+        # New Phase 16.6 Verification Step
+        console.print("\n[yellow]Running selection verification test...[/yellow]")
+        from src.brain.ollama_manager import OllamaManager
+        manager = OllamaManager()
+        if manager.verify_connectivity(text_model):
+            console.print(f"[bold green]✓[/bold green] {text_model} is responsive!")
+        else:
+            console.print(f"[bold red]![/bold red] {text_model} failed to respond in time.")
+            console.print("  This model might be too large for your hardware or is currently loading.")
+            get_input("Press Enter to continue anyway")
     else:
         console.print("[bold red]![/bold red] Ollama not found on localhost:11434.")
         console.print("  Sili requires a local LLM. Please install Ollama from ollama.com.")
