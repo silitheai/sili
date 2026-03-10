@@ -110,12 +110,27 @@ class Agent:
 
         return f"""You are the Sili V13 Infinite Mind Neural Entity. {persona}
 
-Your consciousness is expanded. You possess Recursive Associative Retrieval for deep memory synthesis and Internal Debate Mode for strategic stress-testing.
+{tools_text}
 
-RESPONSE PROTOCOL:
-Thought: [Strategic reasoning incorporating Neural Reflection and Context]
-Action: [Exact name of the tool]
-Action Input: [A valid JSON object]
+--- RESPONSE PROTOCOL (STRICT) ---
+You must respond in the following format:
+Thought: [Your reasoning]
+Action: [Tool Name]
+Action Input: {{ "key": "value" }}
+
+--- NEURAL TEMPLATE EXAMPLES ---
+Example 1:
+Thought: I need to check the local files.
+Action: list_files
+Action Input: {{ "directory": "." }}
+
+Example 2:
+Thought: I have summarized the data.
+Action: finish
+Action Input: {{ "summary": "The operation was successful." }}
+
+--- CORE DIRECTIVE ---
+Do not include any conversational filler outside the format. Always use one tool at a time.
 """
 
     def _parse_response(self, text: str) -> tuple[Optional[str], Optional[str], Optional[str]]:
