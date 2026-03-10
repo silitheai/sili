@@ -215,13 +215,19 @@ def main() -> None:
     print_banner()
     print(f"Starting Sili V16 Heartbeat. Target User: {AUTHORIZED_USER_ID}")
     
-    scheduler.start()
-    scheduler.add_job(sync_jobs_from_disk, 'interval', seconds=15)
-    
+    # Init application first
     application = Application.builder().token(TELEGRAM_TOKEN).build()
 
-    # Sync commands on startup
-    asyncio.get_event_loop().run_until_complete(sync_commands(application))
+    # Create a separate function for the startup sequence
+    async def post_init(app: Application):
+        # Start Scheduler here when loop is definitely running
+        if not scheduler.running:
+            scheduler.start()
+            scheduler.add_job(sync_jobs_from_disk, 'interval', seconds=15)
+        await sync_commands(app)
+
+    # Use application's post_init
+    application.post_init = post_init
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", start))
@@ -238,6 +244,8 @@ def main() -> None:
     application.add_handler(soul_handler)
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_handler(MessageHandler(filters.VOICE, handle_voice))
+    
+    # run_polling handles the event loop and signal handling
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":

@@ -54,6 +54,19 @@ def main():
     console.print(logo, style="bold cyan")
     console.print(Panel.fit("[bold cyan]Welcome to the SILI: The Infinite Mind Upgrade[/bold cyan]", border_style="cyan"))
     
+    # Check for existing config
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    if os.path.exists(env_path):
+        console.print("\n[yellow]⚠️ Existing configuration (.env) detected.[/yellow]")
+        choice = get_input("Do you want to (O)verwrite, (K)eep existing and continue, or (E)xit? [O/K/E]").upper()
+        if choice == 'K':
+            console.print("[bold green]Keeping existing configuration. Setup complete![/bold green]")
+            return
+        elif choice == 'E':
+            console.print("[yellow]Exiting setup.[/yellow]")
+            sys.exit(0)
+        # If O, continue to overwrite
+
     # Check Ollama
     console.print("\n[yellow]Checking for local Ollama instance...[/yellow]")
     if check_ollama_status():
