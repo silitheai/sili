@@ -97,16 +97,52 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         logger.error(f"Error executing agent task: {e}")
         await processing_message.edit_text(f"❌ Critical error: {str(e)}")
 
+async def list_tools(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Lists all available tools and skills to the user."""
+    user = update.effective_user
+    if str(user.id) != AUTHORIZED_USER_ID: return
+
+    agent = Agent(user_id=str(user.id))
+    
+    text = "⚒ <b>SILI Master Toolkit & Neural Skillset</b>\n\n"
+    
+    text += "<b>Core Tools:</b>\n"
+    for name in sorted(agent.master_tools.keys()):
+        text += f"• <code>/{name}</code>\n"
+        
+    text += "\n<b>Neural Skills:</b>\n"
+    # Group skills by first letter or show top ones if too many
+    all_skills = sorted(agent.dynamic_skills.keys())
+    for name in all_skills:
+        text += f"• <code>/{name}</code>\n"
+        
+    text += "\n<i>Just send me any instruction in plain English, and I will use these tools automatically.</i>"
+    
+    # Split message if it's too long for Telegram (4096 chars)
+    if len(text) > 4000:
+        chunks = [text[i:i + 4000] for i in range(0, len(text), 4000)]
+        for chunk in chunks:
+            await update.message.reply_html(chunk)
+    else:
+        await update.message.reply_html(text)
+
 async def sync_commands(application: Application):
     """Dynamically updates the Telegram bot menu based on available tools."""
     commands = [
-        ("start", "Initialize the neural link"),
+        ("start", "Initialize/Verify the neural link"),
         ("setsoul", "Configure agent's identity"),
-        ("help", "Show available system capabilities")
+        ("tools", "List all 75+ autonomous capabilities"),
+        ("help", "Show system usage guide")
     ]
-    # Optionally add more from tools list
+    
+    # Add top 20 skills to the menu for quick access
+    agent = Agent()
+    top_skills = sorted(agent.dynamic_skills.keys())[:20]
+    for skill in top_skills:
+        commands.append((skill, f"Execute skill: {skill}"))
+        
     await application.bot.set_my_commands(commands)
-    logger.info("Bot commands synchronized.")
+    logger.info(f"Bot commands synchronized. Total: {len(commands)}")
 
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Downloads voice notes and passes the path to the agent for transcription/processing."""
@@ -231,6 +267,7 @@ def main() -> None:
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", start))
+    application.add_handler(CommandHandler("tools", list_tools))
 
     soul_handler = ConversationHandler(
         entry_points=[CommandHandler("setsoul", setsoul_start)],
