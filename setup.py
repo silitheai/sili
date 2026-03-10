@@ -26,7 +26,7 @@ BRAVE_SEARCH_API_KEY={brave_key}
     console.print(f"\n[bold green]Success![/bold green] Configuration saved to {env_path}")
 
 def main():
-    console.print(Panel.fit("[bold cyan]Welcome to the OpenClaw Setup Wizard[/bold cyan]", border_style="cyan"))
+    console.print(Panel.fit("[bold cyan]Welcome to the Sili Setup Wizard[/bold cyan]", border_style="cyan"))
     
     # Check Ollama
     console.print("\n[yellow]Checking for local Ollama instance...[/yellow]")
@@ -34,15 +34,15 @@ def main():
         console.print("[bold green]✓[/bold green] Ollama detected running on localhost:11434!")
     else:
         console.print("[bold red]![/bold red] Ollama does not appear to be running on localhost:11434.")
-        console.print("  Make sure you have Ollama installed and running before using OpenClaw.")
+        console.print("  Make sure you have Ollama installed and running before using Sili.")
         Prompt.ask("Press Enter to continue setup regardless")
 
     console.print("\n[bold cyan]API Configuration[/bold cyan]")
-    console.print("We need a few API keys to enable OpenClaw's advanced features.")
+    console.print("We need a few API keys to enable Sili's advanced features.")
     
     # Telegram Key
     console.print("\n[bold]1. Telegram Bot Token[/bold]")
-    console.print("Required to control OpenClaw via Telegram. Get one by messaging @BotFather on Telegram.")
+    console.print("Required to control Sili via Telegram. Get one by messaging @BotFather on Telegram.")
     telegram_key = Prompt.ask("Enter your Telegram Bot Token (leave blank to skip)")
     
     # Brave Search Key

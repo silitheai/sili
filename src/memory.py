@@ -3,7 +3,7 @@ import os
 from typing import List, Dict, Any
 
 class MemoryManager:
-    """Manages persistent memory storage for OpenClaw using simple JSON."""
+    """Manages persistent memory storage for Sili using simple JSON."""
     def __init__(self, memory_file_path: str = None):
         if memory_file_path is None:
             # Default to a memory.json in the project root
@@ -29,8 +29,8 @@ class MemoryManager:
         except json.JSONDecodeError:
             return []
 
-    def add_interaction(self, user_id: str, role: str, content: str):
-        """Adds a message to the user's persistent memory log."""
+    def add_interaction(self, user_id: str, role: str, content: str, topic: str = "General"):
+        """Adds a message to the user's persistent memory log with thematic tagging."""
         try:
             with open(self.memory_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
@@ -41,11 +41,15 @@ class MemoryManager:
         if user_id_str not in data:
             data[user_id_str] = []
 
-        data[user_id_str].append({"role": role, "content": content})
+        data[user_id_str].append({
+            "role": role, 
+            "content": content,
+            "topic": topic
+        })
         
-        # Keep only the last 20 interactions to prevent context overflow locally
-        if len(data[user_id_str]) > 20:
-            data[user_id_str] = data[user_id_str][-20:]
+        # Increased limit for V13 Infinite Mind (Dream Cycle will handle further consolidation)
+        if len(data[user_id_str]) > 50:
+            data[user_id_str] = data[user_id_str][-50:]
 
         with open(self.memory_file, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2)

@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# OpenClaw One-Click Installer
+# Sili One-Click Installer
 echo "=========================================="
-echo "    Installing OpenClaw (V3 Supreme)      "
+echo "    Installing Sili (V3 Supreme)      "
 echo "=========================================="
 
 # 1. Check Python
@@ -22,13 +22,13 @@ pip install --upgrade pip
 if [ -f "requirements.txt" ]; then
     pip install -r requirements.txt
 else
-    echo "[!] requirements.txt not found! Ensure you are running this from the OpenClaw root directory."
+    echo "[!] requirements.txt not found! Ensure you are running this from the Sili root directory."
     exit 1
 fi
 
 # 4. Check Ollama
 if ! command -v ollama &> /dev/null; then
-    echo "[!] Ollama is not installed. OpenClaw relies on Ollama for local inference."
+    echo "[!] Ollama is not installed. Sili relies on Ollama for local inference."
     echo "    Please install Ollama from https://ollama.com before continuing."
 else
     echo "[*] Verifying recommended models exist..."

@@ -8,7 +8,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
 from agent import Agent
 
 def main():
-    parser = argparse.ArgumentParser(description="OpenClaw: Your Lightweight Local Autonomous Agent")
+    parser = argparse.ArgumentParser(description="Sili: Your Lightweight Local Autonomous Agent")
     parser.add_argument("goal", type=str, nargs="+", help="The goal you want the agent to achieve.")
     parser.add_argument("--image", type=str, action="append", help="Path to an image to provide to the vision model (can be used multiple times).")
     parser.add_argument("--text-model", type=str, default="llama3.1", help="Ollama text model to use (default: llama3.1)")
