@@ -33,7 +33,7 @@ class Agent:
         self.cortex = NeuralCortex(self.brain_orchestrator)
         self.proprioception = Proprioception()
         
-        self.max_steps = 1000
+        self.max_steps = 10000
         
         # Recursive Master Tools Loader (src/tools/)
         self.tools_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools")
@@ -113,13 +113,33 @@ Action Input: [A valid JSON object]
 """
 
     def _parse_response(self, text: str) -> tuple[Optional[str], Optional[str], Optional[str]]:
-        thought_match = re.search(r"Thought:\s*(.*?)(?=\nAction:|$)", text, re.DOTALL)
-        action_match = re.search(r"Action:\s*(.*?)(?=\nAction Input:|$)", text)
-        input_match = re.search(r"Action Input:\s*(.*?)$", text, re.DOTALL)
+        # Robust Parsing Strategy: Search for markers anywhere in the text
+        thought = None
+        action = None
+        action_input_raw = None
 
-        thought = thought_match.group(1).strip() if thought_match else None
-        action = action_match.group(1).strip() if action_match else None
-        action_input_raw = input_match.group(1).strip() if input_match else None
+        # Extract Thought: everything between "Thought:" and either "Action:" or end of string
+        thought_match = re.search(r"Thought:\s*(.*?)(?=\n?Action:|$)", text, re.DOTALL | re.IGNORECASE)
+        if thought_match:
+            thought = thought_match.group(1).strip()
+        else:
+            # Fallback: if no "Thought:" marker, maybe the whole thing is a thought if it's not a tool call
+            if "Action:" not in text:
+                thought = text.strip()
+
+        # Extract Action: everything between "Action:" and either "Action Input:" or end of line
+        action_match = re.search(r"Action:\s*([a-zA-Z0-9_-]+)", text, re.IGNORECASE)
+        if action_match:
+            action = action_match.group(1).strip()
+
+        # Extract Action Input: everything after "Action Input:"
+        # We handle potential markdown code blocks around JSON
+        input_match = re.search(r"Action Input:\s*(.*)$", text, re.DOTALL | re.IGNORECASE)
+        if input_match:
+            action_input_raw = input_match.group(1).strip()
+            # Clean up potential trailing text if it's not JSON
+            # However, json.loads is usually better at this if we strip markdown
+            action_input_raw = re.sub(r'```json\n?|```', '', action_input_raw).strip()
 
         return thought, action, action_input_raw
 
@@ -208,13 +228,13 @@ Action Input: [A valid JSON object]
             
             if not action or not action_input_raw:
                 consecutive_errors += 1
-                error_msg = f"Error: Could not parse Action or Action Input. (Error count: {consecutive_errors})"
-                prompt += f"\nObservation: {error_msg}\n"
+                error_msg = f"CRITICAL: INVALID RESPONSE FORMAT. You MUST use 'Thought:', 'Action:', and 'Action Input:'. (Failure {consecutive_errors}/20)"
+                prompt += f"\n{response_text}\nObservation: {error_msg}\n"
                 
-                if consecutive_errors >= 10:
-                     return f"Cognitive Halt: Sili encountered too many consecutive parsing errors ({consecutive_errors}). Check if Ollama is connected or the model is hallucinating."
+                if consecutive_errors >= 20: # Increased budget
+                     return f"Neural Congestion: Sili encountered too many formatting errors ({consecutive_errors}). Please ensure your local model is following instructions or try a stronger model like Llama-3.1-8B."
                 
-                time.sleep(1) # Safety delay to prevent fast-spinning
+                time.sleep(1) 
                 continue
             
             consecutive_errors = 0 # Reset on success

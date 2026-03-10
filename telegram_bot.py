@@ -238,38 +238,78 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     if str(user.id) != AUTHORIZED_USER_ID: return
 
     keyboard = [
-        [InlineKeyboardButton("List Tools", callback_data="list_tools"),
-         InlineKeyboardButton("Ollama Status", callback_data="ollama_status")],
-        [InlineKeyboardButton("Set Soul", callback_data="set_soul"),
-         InlineKeyboardButton("Help", callback_data="show_help")]
+        [
+            InlineKeyboardButton("⚒ Master Tools", callback_data="list_tools"),
+            InlineKeyboardButton("🧠 Neural Skills", callback_data="list_skills")
+        ],
+        [
+            InlineKeyboardButton("🔌 Ollama Status", callback_data="ollama_status"),
+            InlineKeyboardButton("👤 Soul Config", callback_data="set_soul")
+        ],
+        [
+            InlineKeyboardButton("❓ Help & Usage", callback_data="show_help")
+        ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("⚙️ <b>Sili Neural Interactive Menu:</b>", reply_markup=reply_markup, parse_mode="HTML")
+    await update.message.reply_html(
+        "🪐 <b>SILI NEURAL INTERACTIVE MENU</b>\n\n"
+        "Welcome to the Infinite Mind command center. Select a module to explore your agent's capabilities.",
+        reply_markup=reply_markup
+    )
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handles button presses from the interactive menu."""
     query = update.callback_query
-    await query.answer() # Acknowledge the callback query
-
+    await query.answer()
+    
     user_id = str(query.from_user.id)
-    if user_id != AUTHORIZED_USER_ID:
-        await query.edit_message_text("🔒 Access Denied.")
-        return
+    if user_id != AUTHORIZED_USER_ID: return
 
     if query.data == "list_tools":
-        await query.edit_message_text("Fetching tools list...")
-        await list_tools(update, context) # Pass update, not query
+        agent = Agent(user_id=user_id)
+        text = "⚒ <b>Master Toolkit</b>\n\n"
+        for name in sorted(agent.master_tools.keys()):
+            text += f"• <code>/{name}</code>\n"
+        keyboard = [[InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_menu")]]
+        await query.edit_message_text(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard))
+        
+    elif query.data == "list_skills":
+        agent = Agent(user_id=user_id)
+        text = "🧠 <b>Neural Skillset</b>\n\n"
+        for name in sorted(agent.dynamic_skills.keys()):
+            text += f"• <code>/{name}</code>\n"
+        keyboard = [[InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_menu")]]
+        await query.edit_message_text(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard))
+
     elif query.data == "ollama_status":
-        await query.edit_message_text("Checking Ollama status...")
-        await ollama_status_command(update, context) 
+        from src.skills.ollama_status import ollama_status
+        status = ollama_status()
+        keyboard = [[InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_menu")]]
+        await query.edit_message_text(status, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard))
+        
     elif query.data == "set_soul":
-        await query.edit_message_text("Initiating Soul Configuration...")
-        await setsoul_start(update, context) # Re-use existing command handler
+        await query.edit_message_text("Initiating Soul Configuration Wizard... Run /setsoul to begin.")
+        
     elif query.data == "show_help":
-        await query.edit_message_text("Displaying help information...")
-        await start(update, context) # Re-use existing command handler (start also serves as help)
-    else:
-        await query.edit_message_text(f"Unknown action: {query.data}")
+        help_text = "📖 <b>SILI Help Guide</b>\n\n1. Send any goal in plain English.\n2. Use /menu for interactive exploration.\n3. Type /ollama to check connection."
+        keyboard = [[InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_menu")]]
+        await query.edit_message_text(help_text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard))
+        
+    elif query.data == "back_to_menu":
+        # Create a mock update to re-use menu_command
+        keyboard = [
+            [InlineKeyboardButton("⚒ Master Tools", callback_data="list_tools"),
+             InlineKeyboardButton("🧠 Neural Skills", callback_data="list_skills")],
+            [InlineKeyboardButton("🔌 Ollama Status", callback_data="ollama_status"),
+             InlineKeyboardButton("👤 Soul Config", callback_data="set_soul")],
+            [InlineKeyboardButton("❓ Help & Usage", callback_data="show_help")]
+        ]
+        await query.edit_message_text(
+            "🪐 <b>SILI NEURAL INTERACTIVE MENU</b>\n\n"
+            "Welcome to the Infinite Mind command center. Select a module to explore.",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
 
 # --- TEMPORAL SCHEDULER LOGIC ---
 async def execute_scheduled_job(job_id: str, goal: str, user_id: str):
