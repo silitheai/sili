@@ -8,11 +8,21 @@ from rich.panel import Panel
 console = Console()
 
 def check_ollama_status() -> bool:
-    """Checks if Ollama is running locally on the default port."""
+    """Checks if Ollama is running and has models available."""
     try:
-        response = requests.get("http://localhost:11434")
-        return response.status_code == 200
-    except requests.exceptions.ConnectionError:
+        # Check basic connectivity
+        response = requests.get("http://localhost:11434/api/tags")
+        if response.status_code == 200:
+            data = response.json()
+            models = data.get("models", [])
+            if models:
+                console.print(f"[dim]  Detected models: {', '.join([m['name'] for m in models[:3]])}...[/dim]")
+                return True
+            else:
+                console.print("[yellow]  Ollama is running but no models are downloaded.[/yellow]")
+                return True # Still running
+        return False
+    except:
         return False
 
 def create_env_file(telegram_key: str, user_id: str, brave_key: str):
@@ -95,8 +105,12 @@ def main():
     
     # Telegram User ID
     console.print("\n[bold]2. Telegram User ID[/bold]")
-    console.print("Sili will ONLY respond to you. Message @userinfobot to get your ID.")
-    user_id = get_input("Enter your Telegram User ID")
+    console.print("Sili will ONLY respond to you. Message @userinfobot to get your ID (It must be a number).")
+    while True:
+        user_id = get_input("Enter your Telegram User ID")
+        if user_id.isdigit():
+            break
+        console.print("[bold red]Invalid ID![/bold red] Your Telegram User ID must be a numeric string (e.g., 12345678).")
 
     # Pairing Code Flow (Optional but recommended)
     console.print("\n[bold]3. Security Pairing[/bold]")

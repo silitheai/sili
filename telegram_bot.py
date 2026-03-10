@@ -46,6 +46,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     if str(user.id) != AUTHORIZED_USER_ID:
         logger.warning(f"Unauthorized access attempt by {user.id}")
+        await update.message.reply_html(
+            f"🔒 <b>Access Denied</b>\n\n"
+            f"Sili is locked to a specific user. Your Telegram ID is: <code>{user.id}</code>\n\n"
+            f"If this is you, please run <code>sili-setup</code> and provide this ID."
+        )
         return
 
     global is_verified
