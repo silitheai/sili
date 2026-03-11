@@ -1,6 +1,8 @@
 import asyncio
-from typing import List, Dict, Any, Optional
-from src.agent import Agent
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.agent import Agent
 
 class SwarmOrchestrator:
     """
@@ -13,6 +15,7 @@ class SwarmOrchestrator:
         
     async def summon_specialist(self, specialist_name: str, role_description: str, goal: str) -> str:
         """Spawns an asynchronous sub-agent with a dedicated role and goal."""
+        from src.agent import Agent
         print(f"[SWARM] Summoning specialist '{specialist_name}' for task: {goal[:50]}...")
         
         # Instantiate a fresh clerk agent
