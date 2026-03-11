@@ -116,7 +116,7 @@ class Agent:
 --- RESPONSE PROTOCOL (STRICT) ---
 Thought: [Reasoning]
 Action: [Tool Name]
-Action Input: { "key": "value" }
+Action Input: {{ "key": "value" }}
 
 --- CORE DIRECTIVE ---
 Use one tool at a time. Respond only in the format above.
