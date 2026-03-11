@@ -221,14 +221,17 @@ Use one tool at a time. Respond only in the format above.
             base64_images = [load_image_as_base64(p) for p in image_paths if os.path.exists(p)]
 
         ambient = self.proprioception.get_ambient_awareness()
-        print(f"\n{ambient}")
-
-        context = self.cortex.get_cognitive_context(goal, self.user_id)
-        persona_sum = self.soul_manager.get_persona_summary()
-        neural_reflection = await self.neural_brain.reflect(goal, context, persona_sum)
+        
+        # V16.12 Fast-Path: Skip heavy reflection for simple chat
+        if len(goal.split()) < 5:
+             neural_reflection = "Direct response mode engaged."
+        else:
+             context = self.cortex.get_cognitive_context(goal, self.user_id)
+             persona_sum = self.soul_manager.get_persona_summary()
+             neural_reflection = await self.neural_brain.reflect(goal, context, persona_sum)
+             
         print(f"\n[NEURAL REFLECTION]\n{neural_reflection}\n")
-
-        prompt = f"{ambient}\nNeural Reflection: {neural_reflection}\nCognitive Context: {context.get('procedural', [])}\nGoal: {goal}\n"
+        prompt = f"{ambient}\nNeural Reflection: {neural_reflection}\nGoal: {goal}\n"
         
         consecutive_errors = 0
         for step in range(self.max_steps):
@@ -255,6 +258,12 @@ Use one tool at a time. Respond only in the format above.
             thought, action, action_input_raw = self._parse_response(response_text)
             
             if not action or not action_input_raw:
+                # V16.12: If we have reasoning/thought but no specific action, treat as direct answer
+                if thought and not action:
+                    print(f"\n[Sili Direct Response] {thought}")
+                    self.brain_orchestrator.store_experience(self.user_id, goal, thought)
+                    return thought
+
                 consecutive_errors += 1
                 error_msg = f"CRITICAL: INVALID RESPONSE FORMAT. You must use 'Thought:', 'Action:', and 'Action Input:'."
                 # V16.8 Prompt Surgery: Truncate current failure to prevent bloat

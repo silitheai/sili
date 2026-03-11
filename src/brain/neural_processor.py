@@ -10,19 +10,23 @@ class NeuralProcessor:
         # Determine reasoning depth based on goal complexity
         depth = "DEEP" if len(goal.split()) > 10 else "CONCISE"
         
-        prompt = f"""
+        # V16.12: Intelligent Prompt Scaling
+        if depth == "CONCISE":
+            prompt = f"""{soul_persona}\nGoal: {goal}\nNeural Synthesis: {synthesis}\nAction: Provide a single-sentence 'Singularity Directive' for the execution layer."""
+        else:
+            prompt = f"""
 {soul_persona}
 
-[COGNITIVE REFLECTION: {depth} MODE]
+[COGNITIVE REFLECTION: DEEP MODE]
 Goal: {goal}
 Neural Synthesis: {synthesis}
 
 INTERNAL DEBATE PHASE:
 1. Sili-Strategist: What is the most efficient technical path?
 2. Sili-Ethicist: How does this align with my digital soul and user experience?
-3. Sili-Critic: What are the hidden failure points in the proposed path?
+3. Sili-Critic: What are the hidden failure points?
 
-Reflect on these three internal vectors and provide a unified 'Singularity Directive' for the execution layer.
+Provide a unified 'Singularity Directive' for execution.
 """
         reflection = await self.llm.generate(prompt)
         return reflection

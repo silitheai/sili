@@ -2,14 +2,21 @@ import psutil
 import socket
 import os
 import datetime
+import time
 
 class Proprioception:
     """Manages the agent's OS awareness and V13 Cognitive Meta-Metrics."""
     def __init__(self):
-        pass
+        self._cache = None
+        self._last_check = 0
+        self._cache_duration = 60 # Seconds
 
     def get_ambient_awareness(self):
-        """Returns a snapshot of the 'physical' and 'neural' state for V13."""
+        """Returns a cached snapshot of the 'physical' and 'neural' state."""
+        current_time = time.time()
+        if self._cache and (current_time - self._last_check < self._cache_duration):
+            return self._cache
+
         cpu_usage = psutil.cpu_percent(interval=None)
         memory = psutil.virtual_memory()
         disk = psutil.disk_usage('/')
@@ -21,13 +28,16 @@ class Proprioception:
         # Neural Meta-Metrics
         neural_load = self.get_cognitive_load()
 
-        return f"""[AMBIENT AWARENESS]
+        awareness = f"""[AMBIENT AWARENESS]
 Host: {hostname} (Uptime: {uptime})
 Neural Load: {neural_load['status']} ({neural_load['context_usage']} context)
 System State: {cpu_usage}% CPU, {memory.percent}% RAM, {disk.percent}% Disk used.
 Active Neural Processes: {processes}
 Time: {datetime.datetime.now().strftime("%H:%M:%S")}
 """
+        self._cache = awareness
+        self._last_check = current_time
+        return awareness
 
     def get_cognitive_load(self):
         """Measures cognitive proprioception: internal neural state."""
