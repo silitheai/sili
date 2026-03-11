@@ -53,7 +53,7 @@ class Agent:
         self.system_prompt = self._build_system_prompt()
         
     def _load_recursive_tools(self, base_dir: str) -> Dict[str, Any]:
-        """Recursively loads python files from a directory as callable tools."""
+        """Recursively loads python files from a directory as callable tools with dependency shielding."""
         tools = {}
         for root, _, files in os.walk(base_dir):
             for filename in files:
@@ -78,6 +78,9 @@ class Agent:
                             
                             if func and self._validate_tool(module_name, func):
                                 tools[module_name] = func
+                    except ImportError as ie:
+                        # V16.15: Graceful degradation for missing dependencies
+                        print(f"Warning: Tool '{filename}' disabled due to missing dependency: {ie}")
                     except Exception as e:
                         print(f"Failed to load tool {filename}: {e}")
         return tools
@@ -206,7 +209,7 @@ Use one tool at a time. Respond only in the format above.
         return f"Completed {duration_minutes}m observation of ${target_ticker}."
 
     async def run(self, goal: str, image_paths: Optional[List[str]] = None, step_callback: Optional[callable] = None) -> str:
-        """Runs the V13 Infinite Mind loop (Async)."""
+        """Runs the V13 Infinite Mind loop (Async) with Neural Heartbeat."""
         # Check if goal is a trading observation request
         if "monitor" in goal.lower() or "observe" in goal.lower():
             ticker_match = re.search(r"\$([A-Z]+)", goal)
@@ -236,8 +239,9 @@ Use one tool at a time. Respond only in the format above.
         consecutive_errors = 0
         for step in range(self.max_steps):
             if step_callback:
-                # V16.10 Feed progress back to the UI
-                await step_callback(step + 1, self.max_steps)
+                # V16.15: Enhanced Heartbeat with status awareness
+                status = "Observing..." if step == 0 else f"Executing {action}..." if 'action' in locals() else "Neural Processing..."
+                await step_callback(step + 1, self.max_steps, status=status)
 
             print(f"\n--- Infinite Step {step+1}/{self.max_steps} ---")
             

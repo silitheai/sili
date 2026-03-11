@@ -120,17 +120,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         
         typing_task = asyncio.create_task(send_typing())
         
-        # 3. Neural Step Callback (V16.10 Live Feedback)
-        async def update_progress(current_step, max_steps):
+        # 3. Neural Step Callback (V16.15 Live Feedback Heartbeat)
+        async def update_progress(current_step, max_steps, status="Neural Processing"):
             try:
-                # Update every few steps or on first step to minimize Telegram API spam
-                if current_step == 1 or current_step % 2 == 0:
-                    await processing_message.edit_text(
-                        f"🧠 **SILI Neural Chain (Step {current_step}/{max_steps})**\n"
-                        f"Executing via: <code>{text_model}</code>\n\n"
-                        f"<i>Current depth: {'◌' * (current_step % 5)}{'●'}{'◌' * (4 - (current_step % 5))}</i>",
-                        parse_mode="HTML"
-                    )
+                # Update on every step now that we have status awareness
+                progress_bar = "".join(['●' if i < current_step % 5 else '◌' for i in range(5)])
+                await processing_message.edit_text(
+                    f"🧬 **Neural Activity: {status}**\n"
+                    f"<code>[ {progress_bar} ] Sili Step {current_step}</code>\n"
+                    f"<i>Core: {text_model}</i>",
+                    parse_mode="HTML"
+                )
             except: pass
 
         # 4. Neural Execution (Non-blocking Async with Global Watchdog)
