@@ -226,7 +226,7 @@ Use one tool at a time. Respond only in the format above.
         if len(goal.split()) < 5:
              neural_reflection = "Direct response mode engaged."
         else:
-             context = self.cortex.get_cognitive_context(goal, self.user_id)
+             context = await self.cortex.get_cognitive_context(goal, self.user_id)
              persona_sum = self.soul_manager.get_persona_summary()
              neural_reflection = await self.neural_brain.reflect(goal, context, persona_sum)
              
@@ -261,7 +261,7 @@ Use one tool at a time. Respond only in the format above.
                 # V16.12: If we have reasoning/thought but no specific action, treat as direct answer
                 if thought and not action:
                     print(f"\n[Sili Direct Response] {thought}")
-                    self.brain_orchestrator.store_experience(self.user_id, goal, thought)
+                    await self.brain_orchestrator.store_experience(self.user_id, goal, thought)
                     return thought
 
                 consecutive_errors += 1
@@ -287,9 +287,9 @@ Use one tool at a time. Respond only in the format above.
             if action == 'finish':
                 summary = action_input.get('summary', 'Task Finished.')
                 print(f"\n[Sili Infinite Mind Finished] {summary}")
-                self.brain_orchestrator.store_experience(self.user_id, goal, summary)
+                await self.brain_orchestrator.store_experience(self.user_id, goal, summary)
                 # V13 Background Consolidation
-                self.cortex.dream_cycle(self.user_id)
+                await self.cortex.dream_cycle(self.user_id)
                 self.cortex.stress_test_procedural()
                 return summary
 

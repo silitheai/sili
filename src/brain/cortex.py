@@ -28,10 +28,10 @@ class NeuralCortex:
         with open(self.procedural_path, 'w') as f:
             json.dump(self.procedural_memory, f, indent=4)
 
-    def get_cognitive_context(self, query, user_id):
+    async def get_cognitive_context(self, query, user_id):
         """Synthesizes Episodic, Semantic, and Procedural memory with Recursive depth."""
         # Use Recursive depth=1 for Infinite Mind
-        context = self.orchestrator.get_relevant_context(query, user_id, depth=1)
+        context = await self.orchestrator.get_relevant_context(query, user_id, depth=1)
         
         # Add procedural 'feelings' about tools
         procedural_insights = []
@@ -45,7 +45,7 @@ class NeuralCortex:
         context["procedural"] = procedural_insights
         return context
 
-    def dream_cycle(self, user_id):
+    async def dream_cycle(self, user_id):
         """Consolidation Loop: Compresses Episodic memories into Semantic knowledge."""
         print(f"[THE DREAM CYCLE] Sili is consolidating memories for {user_id}...")
         history = self.orchestrator.short_term.get_user_history(user_id)
@@ -53,7 +53,7 @@ class NeuralCortex:
             # Consolidate older memories into the vector database
             to_consolidate = history[:10]
             summary = f"Consolidated Experience: " + " | ".join([f"{m['role']}: {m['content'][:50]}..." for m in to_consolidate])
-            self.orchestrator.vector.add_interaction(user_id, "system", summary)
+            await self.orchestrator.vector.add_interaction(user_id, "system", summary)
             print(f"[THE DREAM CYCLE] Compressed {len(to_consolidate)} episodic fragments into 1 semantic cluster.")
             return True
         return False
