@@ -3,6 +3,7 @@ import sys
 import logging
 import asyncio
 import json
+import html
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -152,11 +153,28 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         duration = (datetime.now() - start_time).total_seconds()
         logger.info(f"Neural Loop Finished in {duration:.2f}s")
         
-        await processing_message.edit_text(result, parse_mode="HTML")
+        # V16.14: Robust Delivery Singularity
+        try:
+            # Try sending as HTML first for markdown support
+            await processing_message.edit_text(result, parse_mode="HTML")
+        except Exception as e:
+            if "Can't parse entities" in str(e) or "unsupported start tag" in str(e):
+                logger.warning(f"HTML Parse failed, falling back to plaintext: {e}")
+                # Fallback: Escape all HTML and send as plaintext
+                safe_text = html.escape(result)
+                try:
+                    await processing_message.edit_text(result, parse_mode=None)
+                except:
+                    await processing_message.edit_text("⚠️ Neural Output was too complex for Telegram. Check terminal for details.")
+            else:
+                await processing_message.edit_text(f"❌ Neural Fault: {str(e)}")
     except Exception as e:
         logger.error(f"Error executing agent task: {e}")
         if 'typing_task' in locals(): typing_task.cancel()
-        await processing_message.edit_text(f"❌ Neural Fault: {str(e)}")
+        # Ensure we always provide feedback
+        try:
+            await processing_message.edit_text(f"❌ Neural Fault: {str(e)}")
+        except: pass
 
 async def list_tools(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Lists all available tools and skills to the user."""
