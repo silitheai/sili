@@ -4,6 +4,7 @@ import os
 import importlib.util
 import inspect
 import time
+import asyncio
 from typing import List, Dict, Any, Optional
 
 from src.llm import LLMWrapper
@@ -36,7 +37,7 @@ class Agent:
         self.cortex = NeuralCortex(self.brain_orchestrator)
         self.proprioception = Proprioception()
         
-        self.max_steps = 10000
+        self.max_steps = 100 # V16.10: Lower default for safety, but still generous
         
         # V16.7 Speed: Class-level caching for tools/skills
         self.tools_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools")
@@ -164,14 +165,16 @@ Do not include any conversational filler outside the format. Always use one tool
 
         return thought, action, action_input_raw
 
-    def _execute_tool(self, action: str, action_input: Dict[str, Any]) -> str:
+    async def _execute_tool(self, action: str, action_input: Dict[str, Any]) -> str:
         try:
             # Check Master Tools first (Priority)
             if action in self.master_tools:
-                obs = str(self.master_tools[action](**action_input))
+                # Wrap synchronous tool calls in to_thread to prevent blocking (V16.9)
+                obs = str(await asyncio.to_thread(self.master_tools[action], **action_input))
             # Check Dynamic Skills
             elif action in self.dynamic_skills:
-                obs = str(self.dynamic_skills[action](**action_input))
+                # Wrap synchronous tool calls in to_thread to prevent blocking (V16.9)
+                obs = str(await asyncio.to_thread(self.dynamic_skills[action], **action_input))
             elif action == 'finish':
                 return action_input.get('summary', 'Task finished.')
             else:
@@ -214,12 +217,13 @@ Do not include any conversational filler outside the format. Always use one tool
         print(f"\n[Sili Trading Mode] Observation session for ${target_ticker} concluded.")
         return f"Completed {duration_minutes}m observation of ${target_ticker}."
 
-    def run(self, goal: str, image_paths: Optional[List[str]] = None) -> str:
-        """Runs the V13 Infinite Mind loop."""
+    async def run(self, goal: str, image_paths: Optional[List[str]] = None, step_callback: Optional[callable] = None) -> str:
+        """Runs the V13 Infinite Mind loop (Async)."""
         # Check if goal is a trading observation request
         if "monitor" in goal.lower() or "observe" in goal.lower():
             ticker_match = re.search(r"\$([A-Z]+)", goal)
             if ticker_match:
+                # We can handle this synchronously for now as it's a loop
                 return self.run_continuous_observation(ticker_match.group(1))
 
         print(f"\n[Sili V13 Infinite Mind Online] Goal: {goal}")
@@ -240,22 +244,38 @@ Do not include any conversational filler outside the format. Always use one tool
         
         consecutive_errors = 0
         for step in range(self.max_steps):
+            if step_callback:
+                # V16.10 Feed progress back to the UI
+                await step_callback(step + 1, self.max_steps)
+
             print(f"\n--- Infinite Step {step+1}/{self.max_steps} ---")
             
             current_images = base64_images if step == 0 else None
-            response_text = self.llm.generate(prompt, self.system_prompt, current_images)
+            # LLM call is now correctly awaited with V16.10 timeout
+            response_text = await self.llm.generate(prompt, self.system_prompt, current_images, timeout=90.0)
             
+            if "Neural Error:" in response_text or "LLM Generation Error:" in response_text:
+                # V16.10: Handle generation failures gracefully
+                if consecutive_errors < 3:
+                    consecutive_errors += 1
+                    prompt += f"\nObservation: {response_text}. Retrying neural inference...\n"
+                    await asyncio.sleep(1)
+                    continue
+                else:
+                    return f"Neural Failure: {response_text}"
+
             thought, action, action_input_raw = self._parse_response(response_text)
             
             if not action or not action_input_raw:
                 consecutive_errors += 1
-                error_msg = f"CRITICAL: INVALID RESPONSE FORMAT. You MUST use 'Thought:', 'Action:', and 'Action Input:'. (Failure {consecutive_errors}/20)"
-                prompt += f"\n{response_text}\nObservation: {error_msg}\n"
+                error_msg = f"CRITICAL: INVALID RESPONSE FORMAT. You must use 'Thought:', 'Action:', and 'Action Input:'."
+                # V16.8 Prompt Surgery: Truncate current failure to prevent bloat
+                prompt += f"\nObservation: {error_msg} (Error {consecutive_errors}/10)\n"
                 
-                if consecutive_errors >= 20: # Increased budget
-                     return f"Neural Congestion: Sili encountered too many formatting errors ({consecutive_errors}). Please ensure your local model is following instructions or try a stronger model like Llama-3.1-8B."
+                if consecutive_errors >= 10: 
+                     return f"Neural Congestion: Sili reached {consecutive_errors} formatting failures. Please recheck your local model or prompt."
                 
-                time.sleep(1) 
+                await asyncio.sleep(0.5) 
                 continue
             
             consecutive_errors = 0 # Reset on success
@@ -264,7 +284,7 @@ Do not include any conversational filler outside the format. Always use one tool
                 action_input = json.loads(cleaned_input)
             except json.JSONDecodeError:
                 error_msg = f"Error: Invalid JSON in Action Input."
-                prompt += f"\n{response_text}\nObservation: {error_msg}\n"
+                prompt += f"\nObservation: {error_msg}\n"
                 continue
 
             if action == 'finish':
@@ -276,7 +296,7 @@ Do not include any conversational filler outside the format. Always use one tool
                 self.cortex.stress_test_procedural()
                 return summary
 
-            observation = self._execute_tool(action, action_input)
+            observation = await self._execute_tool(action, action_input)
             meta_thought = self.cortex.meta_cognition(observation)
             
             # V14 Visual Browsing Hook
@@ -291,6 +311,6 @@ Do not include any conversational filler outside the format. Always use one tool
             if len(observation) > 4000:
                 observation = observation[:4000] + "... [TRUNCATED]"
                 
-            prompt += f"\n{response_text}\nObservation: {observation}\nMeta-Thought: {meta_thought}\n"
+            prompt += f"\nObservation: {observation}\nMeta-Thought: {meta_thought}\n"
 
         return "Neural depth exceeded: Sili achieved maximum persistence."

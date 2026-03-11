@@ -106,8 +106,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     try:
         # 1. Immediate Ollama Check (Async)
         om = OllamaManager()
-        if not await om.is_model_available(os.getenv("TEXT_MODEL", "llama3.1")):
-            await processing_message.edit_text("⚠️ **Ollama is offline or model is missing.**\nPlease run `ollama serve` and ensure your model is downloaded.")
+        text_model = os.getenv("TEXT_MODEL", "llama3.1")
+        if not await om.is_model_available(text_model):
+            await processing_message.edit_text(f"⚠️ **Model '{text_model}' is missing.**\nPlease use /select_model to pick an available local model.")
             return
 
         # 2. Background Typing Indicator
@@ -118,21 +119,40 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         
         typing_task = asyncio.create_task(send_typing())
         
-        # 3. Neural Execution (Non-blocking)
-        loop = asyncio.get_running_loop()
+        # 3. Neural Step Callback (V16.10 Live Feedback)
+        async def update_progress(current_step, max_steps):
+            try:
+                # Update every few steps or on first step to minimize Telegram API spam
+                if current_step == 1 or current_step % 2 == 0:
+                    await processing_message.edit_text(
+                        f"🧠 **SILI Neural Chain (Step {current_step}/{max_steps})**\n"
+                        f"Executing via: <code>{text_model}</code>\n\n"
+                        f"<i>Current depth: {'◌' * (current_step % 5)}{'●'}{'◌' * (4 - (current_step % 5))}</i>",
+                        parse_mode="HTML"
+                    )
+            except: pass
+
+        # 4. Neural Execution (Non-blocking Async with Global Watchdog)
         agent = get_agent(user_id=user_id)
         
         logger.info(f"Neural Loop Start: {message_text}")
         start_time = datetime.now()
         
-        result = await loop.run_in_executor(None, agent.run, message_text, None)
+        # V16.10: Global 5-minute watchdog to prevent ANY hang
+        try:
+            result = await asyncio.wait_for(
+                agent.run(message_text, None, step_callback=update_progress),
+                timeout=300.0
+            )
+        except asyncio.TimeoutError:
+            result = "❌ **Neural Exhaustion**: The goal took too long (5.0m+). This usually happens if your local model is very slow or the task is too complex for your current hardware."
         
         # Cleanup
         typing_task.cancel()
         duration = (datetime.now() - start_time).total_seconds()
         logger.info(f"Neural Loop Finished in {duration:.2f}s")
         
-        await processing_message.edit_text(result)
+        await processing_message.edit_text(result, parse_mode="HTML")
     except Exception as e:
         logger.error(f"Error executing agent task: {e}")
         if 'typing_task' in locals(): typing_task.cancel()
@@ -143,7 +163,7 @@ async def list_tools(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     user = update.effective_user
     if str(user.id) != AUTHORIZED_USER_ID: return
 
-    agent = Agent(user_id=str(user.id))
+    agent = get_agent(user_id=str(user.id))
     
     # Check if this is a callback query or a direct command
     target = update.message if update.message else update.callback_query.message
@@ -155,14 +175,12 @@ async def list_tools(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         text += f"• <code>/{name}</code>\n"
         
     text += "\n<b>Neural Skills:</b>\n"
-    # Group skills by first letter or show top ones if too many
     all_skills = sorted(agent.dynamic_skills.keys())
     for name in all_skills:
         text += f"• <code>/{name}</code>\n"
         
     text += "\n<i>Just send me any instruction in plain English, and I will use these tools automatically.</i>"
     
-    # Split message if it's too long for Telegram (4096 chars)
     if len(text) > 4000:
         chunks = [text[i:i + 4000] for i in range(0, len(text), 4000)]
         for chunk in chunks:
@@ -176,7 +194,8 @@ async def sync_commands(application: Application):
         ("start", "Initialize/Verify the neural link"),
         ("setsoul", "Configure agent's identity"),
         ("tools", "List all 75+ autonomous capabilities"),
-        ("ollama", "Check local LLM health & models"),
+        ("select_model", "Switch local Ollama models"),
+        ("ollama", "Check LLM health & models"),
         ("help", "Show system usage guide")
     ]
     
@@ -202,14 +221,46 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         file_path = os.path.join(temp_dir, f"{user_id}_voice.ogg")
         await voice_file.download_to_drive(file_path)
         goal = f"I just sent you a voice note located at '{file_path}'. Please use the 'transcribe_audio' tool to listen to it, and then fulfill whatever instruction I gave you in the audio."
-        loop = asyncio.get_running_loop()
-        agent = Agent(user_id=user_id)
-        result = await loop.run_in_executor(None, agent.run, goal, None)
+        
+        agent = get_agent(user_id=user_id)
+        result = await agent.run(goal, None)
+        
         if os.path.exists(file_path): os.remove(file_path)
         await processing_message.edit_text(result)
     except Exception as e:
         logger.error(f"Error processing voice note: {e}")
         await processing_message.edit_text(f"❌ Failed to process voice note: {str(e)}")
+
+async def select_model_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Dynamic Model discovery and selection (V16.9)."""
+    user = update.effective_user
+    if str(user.id) != AUTHORIZED_USER_ID: return
+    
+    om = OllamaManager()
+    models = await om.list_local_models()
+    
+    if not models:
+        await update.message.reply_text("❌ No local models found. Run `ollama pull llama3.1` first.")
+        return
+
+    keyboard = []
+    # Vision models grouped
+    vision_models = [m for m in models if "vision" in m.lower() or "llava" in m.lower()]
+    text_models = [m for m in models if m not in vision_models]
+
+    for model in text_models[:8]:
+        keyboard.append([InlineKeyboardButton(f"🧠 {model}", callback_data=f"sel_model:{model}")])
+    
+    for model in vision_models[:4]:
+        keyboard.append([InlineKeyboardButton(f"👁 {model}", callback_data=f"sel_model:{model}")]) # Use sel_model for simplicity
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_html(
+        "🧠 <b>Neural Hub: Model Selection</b>\n\n"
+        f"Currently using: <code>{os.getenv('TEXT_MODEL', 'llama3.1')}</code>\n\n"
+        "Select a core model to switch Sili's primary intelligence:",
+        reply_markup=reply_markup
+    )
 
 async def ollama_status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Check local Ollama health and running models."""
@@ -217,10 +268,14 @@ async def ollama_status_command(update: Update, context: ContextTypes.DEFAULT_TY
     if str(user.id) != AUTHORIZED_USER_ID: return
     
     from src.skills.ollama_status import ollama_status
-    status = ollama_status()
+    # Wrap sync skill
+    status = await asyncio.to_thread(ollama_status)
     
     target = update.message if update.message else update.callback_query.message
-    await target.reply_html(status) if update.message else await target.edit_text(status, parse_mode="HTML")
+    if update.message:
+        await target.reply_html(status)
+    else:
+        await target.edit_text(status, parse_mode="HTML", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_menu")]]))
 
 # --- SOUL CONFIGURATION HANDLERS ---
 async def setsoul_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -275,10 +330,11 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             InlineKeyboardButton("🧠 Neural Skills", callback_data="list_skills")
         ],
         [
-            InlineKeyboardButton("🔌 Ollama Status", callback_data="ollama_status"),
-            InlineKeyboardButton("👤 Soul Config", callback_data="set_soul")
+            InlineKeyboardButton("🌀 Switch Model", callback_data="select_model_btn"),
+            InlineKeyboardButton("🔌 Ollama Status", callback_data="ollama_status")
         ],
         [
+            InlineKeyboardButton("👤 Soul Config", callback_data="set_soul"),
             InlineKeyboardButton("❓ Help & Usage", callback_data="show_help")
         ]
     ]
@@ -298,7 +354,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if user_id != AUTHORIZED_USER_ID: return
 
     if query.data == "list_tools":
-        agent = Agent(user_id=user_id)
+        agent = get_agent(user_id=user_id)
         text = "⚒ <b>Master Toolkit</b>\n\n"
         for name in sorted(agent.master_tools.keys()):
             text += f"• <code>/{name}</code>\n"
@@ -306,7 +362,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await query.edit_message_text(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard))
         
     elif query.data == "list_skills":
-        agent = Agent(user_id=user_id)
+        agent = get_agent(user_id=user_id)
         text = "🧠 <b>Neural Skillset</b>\n\n"
         for name in sorted(agent.dynamic_skills.keys()):
             text += f"• <code>/{name}</code>\n"
@@ -314,10 +370,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await query.edit_message_text(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard))
 
     elif query.data == "ollama_status":
-        from src.skills.ollama_status import ollama_status
-        status = ollama_status()
-        keyboard = [[InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_menu")]]
-        await query.edit_message_text(status, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard))
+        await ollama_status_command(update, context)
         
     elif query.data == "set_soul":
         await query.edit_message_text("Initiating Soul Configuration Wizard... Run /setsoul to begin.")
@@ -327,13 +380,44 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         keyboard = [[InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_menu")]]
         await query.edit_message_text(help_text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard))
         
+    elif query.data == "select_model_btn":
+        om = OllamaManager()
+        models = await om.list_local_models()
+        keyboard = []
+        for model in models[:10]:
+            keyboard.append([InlineKeyboardButton(f"🤖 {model}", callback_data=f"sel_model:{model}")])
+        keyboard.append([InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_menu")])
+        await query.edit_message_text("🧠 <b>Neural Hub</b>\nSelect model:", parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard))
+
+    elif query.data.startswith("sel_model:"):
+        model_name = query.data.split(":")[1]
+        os.environ["TEXT_MODEL"] = model_name
+        global global_agent
+        if global_agent:
+            global_agent.llm.text_model = model_name
+        
+        try:
+            with open(".env", "r") as f: lines = f.readlines()
+            with open(".env", "w") as f:
+                found = False
+                for line in lines:
+                    if line.startswith("TEXT_MODEL="):
+                        f.write(f"TEXT_MODEL={model_name}\n")
+                        found = True
+                    else: f.write(line)
+                if not found: f.write(f"TEXT_MODEL={model_name}\n")
+        except: pass
+
+        await query.answer(f"Model switched to {model_name}")
+        await query.edit_message_text(f"✅ <b>Intelligence Shifted</b>\n\nSili is now running on: <code>{model_name}</code>", parse_mode="HTML", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_menu")]]))
+
     elif query.data == "back_to_menu":
-        # Create a mock update to re-use menu_command
         keyboard = [
             [InlineKeyboardButton("⚒ Master Tools", callback_data="list_tools"),
              InlineKeyboardButton("🧠 Neural Skills", callback_data="list_skills")],
-            [InlineKeyboardButton("🔌 Ollama Status", callback_data="ollama_status"),
-             InlineKeyboardButton("👤 Soul Config", callback_data="set_soul")],
+            [InlineKeyboardButton("🌀 Switch Model", callback_data="select_model_btn"),
+             InlineKeyboardButton("🔌 Ollama Status", callback_data="ollama_status")],
+            [InlineKeyboardButton("👤 Soul Config", callback_data="set_soul")],
             [InlineKeyboardButton("❓ Help & Usage", callback_data="show_help")]
         ]
         await query.edit_message_text(
@@ -348,10 +432,9 @@ async def execute_scheduled_job(job_id: str, goal: str, user_id: str):
     """Executes a cron job by spawning an agent and sending the result back to the user."""
     logger.info(f"Executing scheduled job {job_id}: {goal}")
     try:
-        loop = asyncio.get_running_loop()
-        agent = Agent(user_id=user_id)
+        agent = get_agent(user_id=user_id)
         directive = f"[CRON JOB TRIGGERED] Act autonomously to fulfill the following scheduled goal. Be extremely brief in your final summary.\n\nGOAL: {goal}"
-        result = await loop.run_in_executor(None, agent.run, directive, None)
+        result = await agent.run(directive, None)
         bot_app = Application.builder().token(TELEGRAM_TOKEN).build()
         async with bot_app.bot:
              await bot_app.bot.send_message(chat_id=user_id, text=f"⏰ <b>Scheduled Agent Task Completed!</b>\n\nGoal: {goal}\n\nResult:\n{result}", parse_mode="HTML")
@@ -390,7 +473,7 @@ def main() -> None:
     # Check Ollama Status for Terminal
     from brain.ollama_manager import OllamaManager
     om = OllamaManager()
-    status_summary = om.get_status_summary()
+    status_summary = om.get_status_summary_sync()
     print(f"\n[Sili Neural Heartbeat] {status_summary}")
     
     text_m = os.getenv("TEXT_MODEL", "llama3.1")
@@ -399,24 +482,21 @@ def main() -> None:
     
     print(f"Starting Sili V16 Daemon. Target User: {AUTHORIZED_USER_ID}")
     
-    # Init application first
     application = Application.builder().token(TELEGRAM_TOKEN).build()
 
-    # Create a separate function for the startup sequence
     async def post_init(app: Application):
-        # Start Scheduler here when loop is definitely running
         if not scheduler.running:
             scheduler.start()
             scheduler.add_job(sync_jobs_from_disk, 'interval', seconds=15)
         await sync_commands(app)
 
-    # Use application's post_init
     application.post_init = post_init
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", start))
     application.add_handler(CommandHandler("tools", list_tools))
     application.add_handler(CommandHandler("ollama", ollama_status_command))
+    application.add_handler(CommandHandler("select_model", select_model_command))
     application.add_handler(CommandHandler("menu", menu_command))
     application.add_handler(CallbackQueryHandler(button_callback))
 
@@ -433,7 +513,6 @@ def main() -> None:
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_handler(MessageHandler(filters.VOICE, handle_voice))
     
-    # run_polling handles the event loop and signal handling
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":

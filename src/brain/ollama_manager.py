@@ -31,6 +31,10 @@ class OllamaManager:
             logger.error(f"OllamaManager: Failed to fetch models: {e}")
             return []
 
+    async def list_local_models(self) -> List[str]:
+        """Alias for get_available_models to maintain compatibility (Async)."""
+        return await self.get_available_models()
+
     async def is_model_available(self, model_name: str) -> bool:
         """Checks if a specific model is downloaded (Async)."""
         models = await self.get_available_models()
