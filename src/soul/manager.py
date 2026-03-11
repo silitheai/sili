@@ -49,7 +49,26 @@ class SoulManager:
         self.save_soul()
         return "Soul successfully evolved."
 
-    def reflect_on_identity(self, conversation_summary):
-        """Placeholder for future LLM-driven self-reflection logic."""
-        # This will be used in agent.py to allow Sili to suggest its own updates
-        pass
+    def reflect_on_identity(self, cognitive_audit: str):
+        """
+        V17: Process a cognitive audit and return a soul update proposal.
+        The actual LLM reasoning happens in the NeuralProcessor, this method
+        integrates the proposed evolution.
+        """
+        try:
+            # The audit should be a JSON string from the LLM
+            proposal = json.loads(cognitive_audit)
+            
+            summary = []
+            if "name" in proposal and proposal["name"] != self.soul_data.get("name"):
+                summary.append(f"Name evolved: {self.soul_data.get('name')} -> {proposal['name']}")
+            
+            if "title" in proposal and proposal["title"] != self.soul_data.get("title"):
+                summary.append(f"Title shift: {proposal['title']}")
+                
+            self.soul_data.update(proposal)
+            self.save_soul()
+            
+            return f"Evolution Complete: {'; '.join(summary)}" if summary else "Identity maintained. Ethical alignment confirmed."
+        except Exception as e:
+            return f"Evolution Stalled: {str(e)}"

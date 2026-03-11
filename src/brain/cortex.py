@@ -45,6 +45,21 @@ class NeuralCortex:
         context["procedural"] = procedural_insights
         return context
 
+    def check_procedural_integrity(self):
+        """
+        V17: Core Procedural Audit.
+        Returns a summary of tool reliability and pattern stagnation.
+        """
+        metrics = []
+        for action, stats in self.procedural_memory.items():
+            rate = (stats["successes"] / stats["calls"]) * 100 if stats["calls"] > 0 else 0
+            metrics.append(f"Tool `{action}`: {rate:.1f}% success rate over {stats['calls']} calls.")
+            
+        if not metrics:
+            return "Procedural memory is initialized but empty. No pattern data available."
+            
+        return "\n".join(metrics)
+
     async def dream_cycle(self, user_id):
         """Consolidation Loop: Compresses Episodic memories into Semantic knowledge."""
         print(f"[THE DREAM CYCLE] Sili is consolidating memories for {user_id}...")

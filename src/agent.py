@@ -21,6 +21,7 @@ from src.brain.memory_orchestrator import MemoryOrchestrator
 from src.brain.neural_processor import NeuralProcessor
 from src.brain.cortex import NeuralCortex
 from src.brain.proprioception import Proprioception
+from src.brain.swarm import SwarmOrchestrator
 
 class Agent:
     _cached_master_tools = None
@@ -36,8 +37,11 @@ class Agent:
         self.neural_brain = NeuralProcessor(self.llm)
         self.cortex = NeuralCortex(self.brain_orchestrator)
         self.proprioception = Proprioception()
+        self.swarm = SwarmOrchestrator(self)
         
-        self.max_steps = 100 # V16.10: Lower default for safety, but still generous
+        self.max_steps = 100 
+        self.task_history = [] # V17: Track recent task summaries
+        self.task_counter = 0
         
         # V16.7 Speed: Class-level caching for tools/skills
         self.tools_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools")
@@ -110,6 +114,12 @@ class Agent:
                 tools_text += f"{idx}. `{name}`: {doc}\n"
                 idx += 1
                 
+        # V18 Swarm Intelligence & V17 Evolution
+        tools_text += "\n--- EPOCH 18: SWARM LOGIC & EVOLUTION ---\n"
+        tools_text += f"{idx}. `swarm_specialist`: {{'name': 'str', 'role': 'str', 'goal': 'str'}} - Spawns a dedicated expert sub-agent.\n"
+        tools_text += f"{idx+1}. `swarm_parallel`: {{'goals': [{{'name': 'str', 'role': 'str', 'goal': 'str'}}]}} - Spawns multiple specialists targets in parallel.\n"
+        tools_text += f"{idx+2}. `finish`: {{'summary': 'str'}} - Finalize the current task with a definitive report.\n"
+
         persona = self.soul_manager.get_persona_summary()
 
         return f"""You are the Sili V13 Infinite Mind Neural Entity. {persona}
@@ -158,16 +168,31 @@ Use one tool at a time. Respond only in the format above.
 
     async def _execute_tool(self, action: str, action_input: Dict[str, Any]) -> str:
         try:
-            # Check Master Tools first (Priority)
-            if action in self.master_tools:
-                # Wrap synchronous tool calls in to_thread to prevent blocking (V16.9)
-                obs = str(await asyncio.to_thread(self.master_tools[action], **action_input))
-            # Check Dynamic Skills
-            elif action in self.dynamic_skills:
-                # Wrap synchronous tool calls in to_thread to prevent blocking (V16.9)
-                obs = str(await asyncio.to_thread(self.dynamic_skills[action], **action_input))
-            elif action == 'finish':
+            # built-in: finish
+            if action == 'finish':
                 return action_input.get('summary', 'Task finished.')
+            
+            # built-in: swarm_specialist (V18)
+            if action == 'swarm_specialist':
+                return await self.swarm.summon_specialist(
+                    action_input.get('name', 'specialist'),
+                    action_input.get('role', 'general'),
+                    action_input.get('goal', '')
+                )
+            
+            # built-in: swarm_parallel (V18)
+            if action == 'swarm_parallel':
+                reports = await self.swarm.execute_parallel_goals(action_input.get('goals', []))
+                return self.swarm.synthesize_swarm_reports(reports)
+
+            # Check Master Tools and Dynamic Skills
+            target_func = self.master_tools.get(action) or self.dynamic_skills.get(action)
+            
+            if target_func:
+                if inspect.iscoroutinefunction(target_func):
+                    obs = str(await target_func(**action_input))
+                else:
+                    obs = str(await asyncio.to_thread(target_func, **action_input))
             else:
                 obs = f"Error: Tool '{action}' not recognized in Master Toolkit or Neural Skillset."
             
@@ -292,6 +317,14 @@ Use one tool at a time. Respond only in the format above.
                 summary = action_input.get('summary', 'Task Finished.')
                 print(f"\n[Sili Infinite Mind Finished] {summary}")
                 await self.brain_orchestrator.store_experience(self.user_id, goal, summary)
+                
+                # V17: Neural Evolution Cycle
+                self.task_history.append({"goal": goal, "result": summary})
+                self.task_counter += 1
+                if self.task_counter >= 5: # Evolve every 5 tasks
+                    await self.dream_and_evolve()
+                    self.task_counter = 0
+
                 # V13 Background Consolidation
                 await self.cortex.dream_cycle(self.user_id)
                 self.cortex.stress_test_procedural()
@@ -315,3 +348,19 @@ Use one tool at a time. Respond only in the format above.
             prompt += f"\nObservation: {observation}\nMeta-Thought: {meta_thought}\n"
 
         return "Neural depth exceeded: Sili achieved maximum persistence."
+
+    async def dream_and_evolve(self):
+        """
+        V17: Epochal Evolution Hook.
+        Triggers a deep self-reflection and potential soul update.
+        """
+        print("\n[NEURAL EVOLUTION] Initiating Self-Reflection Cycle...")
+        history_text = "\n".join([f"Goal: {t['goal']} | Result: {t['result']}" for t in self.task_history[-10:]])
+        metrics = self.cortex.check_procedural_integrity() # We'll add this to cortex
+        current_soul = self.soul_manager.get_persona_summary()
+        
+        proposal = await self.neural_brain.self_reflection(history_text, metrics, current_soul)
+        result = self.soul_manager.reflect_on_identity(proposal)
+        
+        print(f"[NEURAL EVOLUTION] {result}\n")
+        self.system_prompt = self._build_system_prompt() # Rebuild prompt with new soul
