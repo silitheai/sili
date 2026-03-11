@@ -8,6 +8,11 @@ def read_file(path: str) -> str:
         path: The absolute or relative path to the file.
     """
     try:
+        # V16.15: Added safety limit (Limit to 1MB)
+        file_size = os.path.getsize(path)
+        if file_size > 1024 * 1024:
+             return f"Error: File is too large ({file_size} bytes). Sili restricts reading to 1MB to prevent neural congestion."
+             
         with open(path, 'r', encoding='utf-8') as f:
             return f.read()
     except Exception as e:

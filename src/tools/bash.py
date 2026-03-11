@@ -9,14 +9,15 @@ def execute_bash(command: str) -> str:
         command: The bash command to execute (e.g. 'ls -la', 'uname -a', 'python script.py').
     """
     try:
-        # Run command securely but with environment access
+        # Run command securely but with environment access (V16.15: Added 30s timeout)
         result = subprocess.run(
             command,
             shell=True,
             check=False,
             capture_output=True,
             text=True,
-            env=os.environ.copy()
+            env=os.environ.copy(),
+            timeout=30.0
         )
         
         output = result.stdout
