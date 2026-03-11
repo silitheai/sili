@@ -114,24 +114,12 @@ class Agent:
 {tools_text}
 
 --- RESPONSE PROTOCOL (STRICT) ---
-You must respond in the following format:
-Thought: [Your reasoning]
+Thought: [Reasoning]
 Action: [Tool Name]
-Action Input: {{ "key": "value" }}
-
---- NEURAL TEMPLATE EXAMPLES ---
-Example 1:
-Thought: I need to check the local files.
-Action: list_files
-Action Input: {{ "directory": "." }}
-
-Example 2:
-Thought: I have summarized the data.
-Action: finish
-Action Input: {{ "summary": "The operation was successful." }}
+Action Input: { "key": "value" }
 
 --- CORE DIRECTIVE ---
-Do not include any conversational filler outside the format. Always use one tool at a time.
+Use one tool at a time. Respond only in the format above.
 """
 
     def _parse_response(self, text: str) -> tuple[Optional[str], Optional[str], Optional[str]]:

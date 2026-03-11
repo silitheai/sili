@@ -138,14 +138,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         logger.info(f"Neural Loop Start: {message_text}")
         start_time = datetime.now()
         
-        # V16.10: Global 5-minute watchdog to prevent ANY hang
+        # V16.11: Global 60-minute watchdog (User requested "no limit", but 1h is a safe practical bound)
         try:
             result = await asyncio.wait_for(
                 agent.run(message_text, None, step_callback=update_progress),
-                timeout=300.0
+                timeout=3600.0
             )
         except asyncio.TimeoutError:
-            result = "❌ **Neural Exhaustion**: The goal took too long (5.0m+). This usually happens if your local model is very slow or the task is too complex for your current hardware."
+            result = "❌ **Neural Exhaustion**: The goal exceeded 60 minutes. This usually indicates a loop or extreme hardware latency."
         
         # Cleanup
         typing_task.cancel()
