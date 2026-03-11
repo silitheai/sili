@@ -188,7 +188,7 @@ Do not include any conversational filler outside the format. Always use one tool
             self.cortex.save_procedural(action, False)
             return f"Error executing tool {action}: {str(e)}"
 
-    def run_continuous_observation(self, target_ticker: str, duration_minutes: int = 60):
+    async def run_continuous_observation(self, target_ticker: str, duration_minutes: int = 60):
         """
         V12 Quantitative Singularity: Continuous Observation Mode.
         Sili monitors a specific ticker/market and executes trades autonomously.
@@ -199,15 +199,15 @@ Do not include any conversational filler outside the format. Always use one tool
         
         while time.time() < end_time:
             # 1. Gather Social Delta and Sentiment
-            sentiment = self._execute_tool("meme_coin_sentiment", {"ticker": target_ticker})
-            delta = self._execute_tool("social_volume_delta", {"ticker": target_ticker})
+            sentiment = await self._execute_tool("meme_coin_sentiment", {"ticker": target_ticker})
+            delta = await self._execute_tool("social_volume_delta", {"ticker": target_ticker})
             
             # 2. Gather Price and Liquidity
-            market = self._execute_tool("dex_screener_pro", {"chain_id": "solana"})
+            market = await self._execute_tool("dex_screener_pro", {"chain_id": "solana"})
             
             # 3. Neural Decision Phase
             decision_prompt = f"Target: {target_ticker}\nSentiment: {sentiment}\nDelta: {delta}\nMarket: {market}\nEvaluate trade entry. Respond with 'Action: [trade_tool]' or 'Action: None'."
-            decision = self.llm.generate(decision_prompt, self.system_prompt)
+            decision = await self.llm.generate(decision_prompt, self.system_prompt)
             
             print(f"[TRADING LOG] {time.strftime('%H:%M:%S')}: {decision[:100]}...")
             
@@ -223,8 +223,8 @@ Do not include any conversational filler outside the format. Always use one tool
         if "monitor" in goal.lower() or "observe" in goal.lower():
             ticker_match = re.search(r"\$([A-Z]+)", goal)
             if ticker_match:
-                # We can handle this synchronously for now as it's a loop
-                return self.run_continuous_observation(ticker_match.group(1))
+                # We handle this asynchronously now (V16.10)
+                return await self.run_continuous_observation(ticker_match.group(1))
 
         print(f"\n[Sili V13 Infinite Mind Online] Goal: {goal}")
         
@@ -237,7 +237,7 @@ Do not include any conversational filler outside the format. Always use one tool
 
         context = self.cortex.get_cognitive_context(goal, self.user_id)
         persona_sum = self.soul_manager.get_persona_summary()
-        neural_reflection = self.neural_brain.reflect(goal, context, persona_sum)
+        neural_reflection = await self.neural_brain.reflect(goal, context, persona_sum)
         print(f"\n[NEURAL REFLECTION]\n{neural_reflection}\n")
 
         prompt = f"{ambient}\nNeural Reflection: {neural_reflection}\nCognitive Context: {context.get('procedural', [])}\nGoal: {goal}\n"

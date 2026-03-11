@@ -3,7 +3,7 @@ class NeuralProcessor:
     def __init__(self, llm):
         self.llm = llm
 
-    def reflect(self, goal, context, soul_persona):
+    async def reflect(self, goal, context, soul_persona):
         """Generates a multi-step neural reflection via Internal Debate."""
         synthesis = context.get('synthesis', 'No synthesis available.')
         
@@ -24,7 +24,7 @@ INTERNAL DEBATE PHASE:
 
 Reflect on these three internal vectors and provide a unified 'Singularity Directive' for the execution layer.
 """
-        reflection = self.llm.generate(prompt)
+        reflection = await self.llm.generate(prompt)
         return reflection
 
     def monitor_neural_load(self, reflection):
